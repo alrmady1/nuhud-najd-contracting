@@ -5,7 +5,6 @@
 const MENU = [
   { key: "dashboard", label: "لوحة التحكم", icon: "🏠" },
   { key: "projects", label: "المشاريع", icon: "🏗️" },
-  { key: "clients", label: "العملاء", icon: "👤" },
   { key: "quotes", label: "عروض الأسعار", icon: "🧾" },
   {
     key: "supervisors", label: "مهام المشرفين", icon: "👷",
@@ -23,6 +22,7 @@ const MENU = [
     ],
   },
   { key: "contracts", label: "العقود", icon: "📄" },
+  { key: "clients", label: "العملاء", icon: "👤" },
   { key: "settings", label: "الإعدادات", icon: "⚙️" },
 ];
 
