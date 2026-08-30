@@ -4,6 +4,7 @@
 
 const MENU = [
   { key: "dashboard", label: "لوحة التحكم", icon: "🏠" },
+  { key: "projects", label: "المشاريع", icon: "🏗️" },
   { key: "clients", label: "العملاء", icon: "👤" },
   { key: "quotes", label: "عروض الأسعار", icon: "🧾" },
   {
@@ -27,6 +28,7 @@ const MENU = [
 
 const PAGE_TITLES = {
   dashboard: "لوحة التحكم",
+  projects: "المشاريع",
   clients: "العملاء",
   quotes: "عروض الأسعار",
   visits: "زيارة موقع",
@@ -272,6 +274,7 @@ function router() {
 
   const renderers = {
     dashboard: renderDashboard,
+    projects: renderProjects,
     clients: renderClients,
     quotes: renderQuotes,
     visits: renderVisits,
@@ -348,5 +351,6 @@ window.addEventListener("DOMContentLoaded", () => {
   migrateClients();
   migratePriceCatalog();
   migrateProfitMargin();
+  migrateProjectsSchema();
   renderApp();
 });

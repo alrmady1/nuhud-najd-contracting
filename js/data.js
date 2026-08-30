@@ -69,12 +69,12 @@ function fileToDataURL(file) {
 const ROLES = ["مدير عام", "مدير النظام", "محاسب", "مهندس", "مراقب موقع", "مسؤول مشتريات"];
 
 const PERMISSIONS = {
-  "مدير عام": ["dashboard", "clients", "quotes", "visits", "reports", "acc_projects", "acc_general", "acc_vat", "contracts", "settings"],
-  "مدير النظام": ["dashboard", "clients", "quotes", "visits", "reports", "acc_projects", "acc_general", "acc_vat", "contracts", "settings"],
-  "محاسب": ["dashboard", "clients", "acc_projects", "acc_general", "acc_vat", "contracts"],
-  "مهندس": ["dashboard", "clients", "quotes", "visits", "reports", "contracts"],
+  "مدير عام": ["dashboard", "projects", "clients", "quotes", "visits", "reports", "acc_projects", "acc_general", "acc_vat", "contracts", "settings"],
+  "مدير النظام": ["dashboard", "projects", "clients", "quotes", "visits", "reports", "acc_projects", "acc_general", "acc_vat", "contracts", "settings"],
+  "محاسب": ["dashboard", "projects", "clients", "acc_projects", "acc_general", "acc_vat", "contracts"],
+  "مهندس": ["dashboard", "projects", "clients", "quotes", "visits", "reports", "contracts"],
   "مراقب موقع": ["dashboard", "visits", "reports"],
-  "مسؤول مشتريات": ["dashboard", "clients", "quotes", "acc_projects"],
+  "مسؤول مشتريات": ["dashboard", "projects", "clients", "quotes", "acc_projects"],
 };
 
 function canAccess(role, routeKey) {
