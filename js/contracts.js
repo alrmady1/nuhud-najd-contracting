@@ -71,31 +71,29 @@ function renderContractsList(el) {
   el.innerHTML = `
     <div class="section-title-row">
       <div><h2>العقود</h2><p>نماذج عقود جاهزة لمشاريع إنشائية أو ترميم أو تشطيبات</p></div>
-      <button class="btn primary" id="newContractBtn">+ عقد جديد</button>
+      <button class="btn primary" id="newContractBtn"><span style="font-size:15px">➕</span> إضافة عقد</button>
     </div>
-    <div class="card">
-      ${contracts.length ? `
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead><tr><th>النوع</th><th>العميل</th><th>القيمة الإجمالية</th><th>عدد الدفعات</th><th>التاريخ</th><th></th></tr></thead>
-          <tbody>
-            ${contracts.map(c => `
-              <tr>
-                <td>${(CONTRACT_TYPES.find(t => t.key === c.type) || {}).label || c.type}</td>
-                <td>${c.clientName}</td>
-                <td><strong>${fmtMoney(c.totalAmount)}</strong></td>
-                <td>${c.paymentsCount}</td>
-                <td>${fmtDate(c.date)}</td>
-                <td><button class="btn sm" data-viewc="${c.id}">فتح</button><button class="btn sm danger" data-delc="${c.id}">حذف</button></td>
-              </tr>`).join("")}
-          </tbody>
-        </table>
-      </div>` : `<div class="empty-state"><div class="ic">📄</div>لا توجد عقود محفوظة بعد</div>`}
-    </div>
+    ${contracts.length ? contracts.map(c => {
+      const typeInfo = CONTRACT_TYPES.find(t => t.key === c.type) || {};
+      return `
+      <div class="contract-row" data-viewc="${c.id}">
+        <div class="contract-row-icon">📄</div>
+        <div class="contract-row-info">
+          <div class="contract-row-title">${c.clientName}</div>
+          <div class="contract-row-sub">${typeInfo.label || c.type} · ${fmtDate(c.date)} · ${c.paymentsCount} دفعات</div>
+        </div>
+        <div class="contract-row-amount">${fmtMoney(c.totalAmount)}</div>
+        <div class="contract-row-actions no-print">
+          <button class="btn sm" data-viewc="${c.id}">فتح</button>
+          <button class="btn sm danger" data-delc="${c.id}">حذف</button>
+        </div>
+      </div>`;
+    }).join("") : `<div class="card empty-state"><div class="ic">📄</div>لا توجد عقود محفوظة بعد</div>`}
   `;
   document.getElementById("newContractBtn").onclick = () => { DRAFT_CONTRACT = newDraftContract(); CONTRACTS_VIEW = "builder"; router(); };
   el.querySelectorAll("[data-viewc]").forEach(b => b.onclick = () => { CONTRACT_VIEW_ID = b.dataset.viewc; CONTRACTS_VIEW = "view"; router(); });
-  el.querySelectorAll("[data-delc]").forEach(b => b.onclick = () => {
+  el.querySelectorAll("[data-delc]").forEach(b => b.onclick = (e) => {
+    e.stopPropagation();
     if (!confirm("حذف هذا العقد؟")) return;
     dbSet("contracts", dbGet("contracts", []).filter(c => c.id !== b.dataset.delc));
     router();
@@ -184,7 +182,7 @@ function renderContractBuilder(el) {
       <div class="item-row" style="grid-template-columns: 1fr 1fr 1fr">
         <div style="font-size:12.5px;font-weight:700">الدفعة ${i + 1}</div>
         <div class="flex" style="align-items:center;gap:6px">
-          <input type="number" min="0" max="100" step="0.01" value="${p.percent}" data-pct="${i}" placeholder="النسبة" style="flex:1">
+          <input type="number" min="0" max="100" step="0.01" value="${p.percent}" data-pct="${i}" placeholder="النسبة" style="width:65px;flex:none">
           <span class="text-muted" style="font-size:12.5px;font-weight:700">% (نسبة مئوية)</span>
         </div>
         <div style="font-size:12.5px" data-pctamt="${i}">${fmtMoney((d.totalAmount || 0) * p.percent / 100)}</div>
