@@ -23,7 +23,7 @@ function renderVisits(el) {
             ${visits.map(v => `
               <tr>
                 <td>${v.clientName}</td>
-                <td>${v.location}</td>
+                <td>${locationDisplay(v.location)}</td>
                 <td>${v.requestedTime ? new Date(v.requestedTime).toLocaleString("ar-SA") : "-"}</td>
                 <td>${v.assignedToName || "-"}</td>
                 <td>${statusBadge(v.status)}</td>
@@ -37,6 +37,14 @@ function renderVisits(el) {
 
   document.getElementById("newVisitBtn").onclick = () => { VISIT_MODAL = "create"; openVisitModal(); };
   el.querySelectorAll("[data-open]").forEach(b => b.onclick = () => { VISIT_MODAL = { id: b.dataset.open }; openVisitModal(); });
+}
+
+function locationDisplay(loc) {
+  if (!loc) return "-";
+  if (/^https?:\/\//i.test(loc.trim())) {
+    return `<a href="${loc}" target="_blank" rel="noopener" class="badge blue" style="text-decoration:none">📍 فتح في خرائط جوجل</a>`;
+  }
+  return loc;
 }
 
 function statusBadge(status) {
@@ -69,7 +77,11 @@ function openVisitModal() {
       <div class="grid cols-2">
         <div class="field"><label>اسم العميل</label><input id="v_clientName"></div>
         <div class="field"><label>رقم جوال العميل</label><input id="v_clientPhone"></div>
-        <div class="field" style="grid-column:span 2"><label>موقع الزيارة</label><input id="v_location"></div>
+        <div class="field" style="grid-column:span 2">
+          <label>موقع الزيارة (رابط خرائط جوجل)</label>
+          <input id="v_location" type="url" placeholder="https://maps.app.goo.gl/...">
+          <div class="hint">افتح الموقع في خرائط جوجل، اضغط "مشاركة"، ثم انسخ الرابط والصقه هنا</div>
+        </div>
         <div class="field"><label>الوقت المطلوب للزيارة</label><input type="datetime-local" id="v_time"></div>
         <div class="field"><label>المشرف المكلف</label>
           <select id="v_assigned">${users.map(u => `<option value="${u.id}">${u.name}</option>`).join("") || `<option value="">لا يوجد مشرفون مسجلون</option>`}</select>
@@ -139,6 +151,16 @@ function openVisitModal() {
         createdAt: new Date().toISOString(),
       });
       dbSet("visits", visits);
+
+      addNotification({
+        type: "visit_new",
+        title: "طلب زيارة موقع جديد",
+        message: `طلب زيارة جديد للعميل "${clientName}" في ${location}${assignedUser ? " — مُكلَّف: " + assignedUser.name : ""}`,
+        targetRoles: ["مدير عام"],
+        targetUserIds: assignedUser ? [assignedUser.id] : [],
+        relatedRoute: "visits",
+      });
+
       toast("تم إرسال طلب الزيارة للمشرف");
       closeModal();
       router();
@@ -155,7 +177,7 @@ function openVisitModal() {
     <div class="modal-head"><h3>زيارة موقع — ${v.clientName}</h3><button class="modal-close" id="mClose">×</button></div>
     <div class="grid cols-2">
       <div class="kv-row"><span class="k">العميل</span><span class="v">${v.clientName} (${v.clientPhone || "-"})</span></div>
-      <div class="kv-row"><span class="k">الموقع</span><span class="v">${v.location}</span></div>
+      <div class="kv-row"><span class="k">الموقع</span><span class="v">${locationDisplay(v.location)}</span></div>
       <div class="kv-row"><span class="k">الوقت المطلوب</span><span class="v">${v.requestedTime ? new Date(v.requestedTime).toLocaleString("ar-SA") : "-"}</span></div>
       <div class="kv-row"><span class="k">المشرف المكلف</span><span class="v">${v.assignedToName || "-"}</span></div>
     </div>

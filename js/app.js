@@ -107,9 +107,17 @@ function renderApp() {
       <div class="main">
         <div class="topbar">
           <h2 id="pageTitle">لوحة التحكم</h2>
-          <div class="user-chip">
-            <div class="avatar">${initials(user.name)}</div>
-            <div>${user.name}<br><small class="text-muted">${user.role}</small></div>
+          <div class="flex gap center">
+            <div class="notif-bell-wrap">
+              <button class="notif-bell" id="notifBellBtn" type="button" title="التنبيهات">
+                🔔<span class="notif-badge" id="notifBadge" style="display:none"></span>
+              </button>
+              <div class="notif-panel" id="notifPanel" style="display:none"></div>
+            </div>
+            <div class="user-chip">
+              <div class="avatar">${initials(user.name)}</div>
+              <div>${user.name}<br><small class="text-muted">${user.role}</small></div>
+            </div>
           </div>
         </div>
         <div class="content" id="content"></div>
@@ -122,8 +130,89 @@ function renderApp() {
     renderLogin();
   };
 
+  document.getElementById("notifBellBtn").onclick = (e) => {
+    e.stopPropagation();
+    toggleNotifPanel();
+  };
+  document.addEventListener("click", (e) => {
+    const wrap = document.querySelector(".notif-bell-wrap");
+    const panel = document.getElementById("notifPanel");
+    if (wrap && panel && panel.style.display !== "none" && !wrap.contains(e.target)) {
+      panel.style.display = "none";
+    }
+  });
+
   renderSidebar();
+  renderNotifBell();
   router();
+}
+
+/* ---------- التنبيهات ---------- */
+function renderNotifBell() {
+  const user = getCurrentUser();
+  if (!user) return;
+  const badge = document.getElementById("notifBadge");
+  if (!badge) return;
+  const unread = getNotificationsForUser(user).filter(n => !n.readBy.includes(user.id));
+  if (unread.length) {
+    badge.textContent = unread.length > 9 ? "9+" : String(unread.length);
+    badge.style.display = "flex";
+  } else {
+    badge.style.display = "none";
+  }
+}
+
+function toggleNotifPanel() {
+  const panel = document.getElementById("notifPanel");
+  if (!panel) return;
+  const isOpen = panel.style.display !== "none";
+  if (isOpen) { panel.style.display = "none"; return; }
+  renderNotifPanelContent();
+  panel.style.display = "block";
+}
+
+function notifTimeAgo(iso) {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "الآن";
+  if (mins < 60) return `منذ ${mins} دقيقة`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `منذ ${hrs} ساعة`;
+  return `منذ ${Math.floor(hrs / 24)} يوم`;
+}
+
+function renderNotifPanelContent() {
+  const user = getCurrentUser();
+  const panel = document.getElementById("notifPanel");
+  const notifs = getNotificationsForUser(user).slice(0, 30);
+  panel.innerHTML = `
+    <div class="notif-panel-head">
+      <strong>التنبيهات</strong>
+      ${notifs.length ? `<span class="notif-markall" id="notifMarkAll">تعليم الكل كمقروء</span>` : ""}
+    </div>
+    <div class="notif-list">
+      ${notifs.length ? notifs.map(n => `
+        <div class="notif-item ${n.readBy.includes(user.id) ? "" : "unread"}" data-notif="${n.id}" data-route="${n.relatedRoute || ""}">
+          <div class="notif-item-title">${n.title}</div>
+          <div class="notif-item-msg">${n.message}</div>
+          <div class="notif-item-time">${notifTimeAgo(n.createdAt)}</div>
+        </div>
+      `).join("") : `<div class="notif-empty">لا توجد تنبيهات</div>`}
+    </div>
+  `;
+  panel.querySelectorAll("[data-notif]").forEach(item => item.onclick = () => {
+    markNotificationRead(item.dataset.notif, user.id);
+    if (item.dataset.route) location.hash = "#/" + item.dataset.route;
+    panel.style.display = "none";
+    renderNotifBell();
+  });
+  const markAllBtn = document.getElementById("notifMarkAll");
+  if (markAllBtn) markAllBtn.onclick = (e) => {
+    e.stopPropagation();
+    markAllNotificationsRead(user.id, notifs.map(n => n.id));
+    renderNotifPanelContent();
+    renderNotifBell();
+  };
 }
 
 function renderSidebar() {
@@ -179,6 +268,7 @@ function router() {
 
   document.getElementById("pageTitle").textContent = PAGE_TITLES[route] || "نهوض نجد للمقاولات";
   renderSidebar();
+  renderNotifBell();
 
   const renderers = {
     dashboard: renderDashboard,

@@ -194,7 +194,7 @@ function renderClientDetail(el) {
               <div class="dot"></div>
               <div class="body">
                 <div class="flex between">
-                  <span style="font-size:13px">${v.location}</span>
+                  <span style="font-size:13px">${locationDisplay(v.location)}</span>
                   ${statusBadge(v.status)}
                 </div>
                 <div class="meta">${v.requestedTime ? new Date(v.requestedTime).toLocaleString("ar-SA") : "-"}</div>

@@ -72,6 +72,10 @@ function openNewReportModal() {
       <div class="field" style="grid-column:span 2"><label>سير العمل والملاحظات</label><textarea id="r_notes" placeholder="وصف الأعمال المنجزة اليوم والملاحظات..."></textarea></div>
       <div class="field" style="grid-column:span 2"><label>طلب مواد للمراحل القادمة / مواد ناقصة</label><textarea id="r_materials" placeholder="مثال: يلزم توريد 50 م² بورسلان لاستكمال أعمال الأرضيات..."></textarea></div>
       <div class="field" style="grid-column:span 2">
+        <label class="chk"><input type="checkbox" id="r_extraChk"> طلب المالك أعمال إضافية</label>
+        <textarea id="r_extraDetails" placeholder="وضّح الأعمال الإضافية التي طلبها المالك..." style="margin-top:8px;display:none"></textarea>
+      </div>
+      <div class="field" style="grid-column:span 2">
         <label>صور التقرير (مع إمكانية إضافة تعليق على كل صورة)</label>
         <input type="file" id="r_photos" multiple accept="image/*">
         <div id="r_photosList" class="photo-grid"></div>
@@ -85,6 +89,10 @@ function openNewReportModal() {
   const ov = openModalShell(html, true);
   ov.querySelector("#mClose").onclick = closeModal;
   ov.querySelector("#r_cancel").onclick = closeModal;
+
+  ov.querySelector("#r_extraChk").onchange = (e) => {
+    ov.querySelector("#r_extraDetails").style.display = e.target.checked ? "block" : "none";
+  };
 
   let photos = [];
   ov.querySelector("#r_photos").onchange = async (e) => {
@@ -122,6 +130,8 @@ function openNewReportModal() {
       progress: Number(ov.querySelector("#r_progress").value) || 0,
       notes: ov.querySelector("#r_notes").value.trim(),
       materialsRequested: ov.querySelector("#r_materials").value.trim(),
+      ownerExtraWork: ov.querySelector("#r_extraChk").checked,
+      ownerExtraWorkDetails: ov.querySelector("#r_extraChk").checked ? ov.querySelector("#r_extraDetails").value.trim() : "",
       photos,
       createdAt: new Date().toISOString(),
     });
@@ -131,6 +141,14 @@ function openNewReportModal() {
     const projects2 = dbGet("projects", []);
     const p2 = projects2.find(x => x.id === projectId);
     if (p2) { p2.completion = Number(ov.querySelector("#r_progress").value) || p2.completion; dbSet("projects", projects2); }
+
+    addNotification({
+      type: "report_new",
+      title: "تقرير يومي جديد",
+      message: `${user.name} رفع تقريراً يومياً لمشروع "${project.name}" — نسبة الإنجاز ${Number(ov.querySelector("#r_progress").value) || 0}%`,
+      targetRoles: ["مدير عام", "مدير النظام"],
+      relatedRoute: "reports",
+    });
 
     toast("تم إرسال التقرير اليومي بنجاح");
     closeModal();
@@ -149,6 +167,11 @@ function openReportViewModal(id) {
     <div class="kv-row"><span class="k">نسبة الإنجاز</span><span class="v">${r.progress}%</span></div>
     <div style="margin-top:12px"><strong>سير العمل والملاحظات</strong><p style="font-size:13px">${r.notes || "-"}</p></div>
     <div style="margin-top:6px"><strong>طلب مواد / نواقص</strong><p style="font-size:13px">${r.materialsRequested || "-"}</p></div>
+    ${r.ownerExtraWork ? `
+      <div style="margin-top:6px;background:#fdecd6;border-radius:8px;padding:10px 12px">
+        <strong style="font-size:13px">⚠️ طلب المالك أعمال إضافية</strong>
+        <p style="font-size:13px;margin:6px 0 0">${r.ownerExtraWorkDetails || "-"}</p>
+      </div>` : ""}
     ${r.photos && r.photos.length ? `
       <strong>صور التقرير</strong>
       <div class="photo-grid">

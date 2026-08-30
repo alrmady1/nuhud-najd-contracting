@@ -242,3 +242,44 @@ function getCompanyProfile() {
 function setCompanyProfile(profile) {
   dbSet("companyProfile", profile);
 }
+
+/* ---------- التنبيهات ---------- */
+function getNotifications() {
+  return dbGet("notifications", []);
+}
+
+// targetRoles: تصل لكل المستخدمين بهذا المسمى الوظيفي. targetUserIds: تصل لمستخدمين محددين بالاسم.
+function addNotification({ type, title, message, targetRoles = [], targetUserIds = [], relatedRoute }) {
+  const list = getNotifications();
+  list.push({
+    id: uid("ntf"), type, title, message, targetRoles, targetUserIds, relatedRoute,
+    createdAt: new Date().toISOString(), readBy: [],
+  });
+  dbSet("notifications", list);
+}
+
+function getNotificationsForUser(user) {
+  if (!user) return [];
+  return getNotifications()
+    .filter(n => (n.targetRoles || []).includes(user.role) || (n.targetUserIds || []).includes(user.id))
+    .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+}
+
+function markNotificationRead(id, userId) {
+  const list = getNotifications();
+  const n = list.find(x => x.id === id);
+  if (n && !n.readBy.includes(userId)) {
+    n.readBy.push(userId);
+    dbSet("notifications", list);
+  }
+}
+
+function markAllNotificationsRead(userId, notifIds) {
+  const list = getNotifications();
+  let changed = false;
+  notifIds.forEach(id => {
+    const n = list.find(x => x.id === id);
+    if (n && !n.readBy.includes(userId)) { n.readBy.push(userId); changed = true; }
+  });
+  if (changed) dbSet("notifications", list);
+}
