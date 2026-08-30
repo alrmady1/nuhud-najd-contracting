@@ -352,5 +352,6 @@ window.addEventListener("DOMContentLoaded", () => {
   migratePriceCatalog();
   migrateProfitMargin();
   migrateProjectsSchema();
+  migrateClientTypes();
   renderApp();
 });

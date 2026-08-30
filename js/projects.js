@@ -21,7 +21,9 @@ function newDraftProject() {
     status: "قيد التنفيذ",
     completion: 0,
     contractId: "",
+    externalContractFile: null,
     approvedQuoteId: "",
+    externalBoqFile: null,
     teamUserIds: [],
     planFiles: [],
     notes: "",
@@ -111,7 +113,7 @@ function projectClientPickerHtml(d) {
   `;
 }
 
-function renderProjectClientResults(container, query) {
+function renderProjectClientResults(container, query, d, onChange) {
   if (!container) return;
   const q = (query || "").trim().toLowerCase();
   if (!q) { container.innerHTML = ""; return; }
@@ -121,23 +123,23 @@ function renderProjectClientResults(container, query) {
   `).join("") : `<div class="text-muted" style="font-size:12px;padding:8px 4px">لا يوجد عملاء مطابقون</div>`;
   container.querySelectorAll("[data-pick]").forEach(row => row.onclick = () => {
     const client = dbGet("clients", []).find(x => x.id === row.dataset.pick);
-    DRAFT_PROJECT.clientId = client.id; DRAFT_PROJECT.client = client.name;
+    d.clientId = client.id; d.client = client.name;
     PROJECT_CLIENT_SEARCH = "";
-    renderProjectBuilder(document.getElementById("content"));
+    onChange();
   });
 }
 
-function bindProjectClientPicker(el, d) {
+function bindProjectClientPicker(el, d, onChange) {
   const changeBtn = document.getElementById("pc_change");
-  if (changeBtn) { changeBtn.onclick = () => { d.clientId = ""; d.client = ""; renderProjectBuilder(el); }; return; }
+  if (changeBtn) { changeBtn.onclick = () => { d.clientId = ""; d.client = ""; onChange(); }; return; }
 
   const search = document.getElementById("pc_search");
   if (search) {
-    renderProjectClientResults(document.getElementById("pc_results"), PROJECT_CLIENT_SEARCH);
-    search.oninput = () => { PROJECT_CLIENT_SEARCH = search.value; renderProjectClientResults(document.getElementById("pc_results"), PROJECT_CLIENT_SEARCH); };
+    renderProjectClientResults(document.getElementById("pc_results"), PROJECT_CLIENT_SEARCH, d, onChange);
+    search.oninput = () => { PROJECT_CLIENT_SEARCH = search.value; renderProjectClientResults(document.getElementById("pc_results"), PROJECT_CLIENT_SEARCH, d, onChange); };
   }
   const toggleBtn = document.getElementById("pc_toggleAdd");
-  if (toggleBtn) toggleBtn.onclick = () => { PROJECT_SHOW_ADD_CLIENT = !PROJECT_SHOW_ADD_CLIENT; renderProjectBuilder(el); };
+  if (toggleBtn) toggleBtn.onclick = () => { PROJECT_SHOW_ADD_CLIENT = !PROJECT_SHOW_ADD_CLIENT; onChange(); };
 
   if (PROJECT_SHOW_ADD_CLIENT) {
     document.getElementById("pc_add").onclick = () => {
@@ -150,9 +152,9 @@ function bindProjectClientPicker(el, d) {
       d.clientId = newClient.id; d.client = newClient.name;
       PROJECT_SHOW_ADD_CLIENT = false; PROJECT_CLIENT_SEARCH = "";
       toast("تمت إضافة العميل");
-      renderProjectBuilder(el);
+      onChange();
     };
-    document.getElementById("pc_cancel").onclick = () => { PROJECT_SHOW_ADD_CLIENT = false; renderProjectBuilder(el); };
+    document.getElementById("pc_cancel").onclick = () => { PROJECT_SHOW_ADD_CLIENT = false; onChange(); };
   }
 }
 
@@ -232,7 +234,7 @@ function renderProjectBuilder(el) {
     <div class="flex gap"><button class="btn primary" id="saveProjectBtn">💾 حفظ المشروع</button><button class="btn" id="cancelProjectBtn">إلغاء</button></div>
   `;
 
-  bindProjectClientPicker(el, d);
+  bindProjectClientPicker(el, d, () => renderProjectBuilder(el));
 
   document.getElementById("backList").onclick = () => { PROJECTS_VIEW = "list"; router(); };
   document.getElementById("cancelProjectBtn").onclick = () => { PROJECTS_VIEW = "list"; router(); };
@@ -286,11 +288,14 @@ function renderProjectDetail(el) {
   const projects = dbGet("projects", []);
   const p = projects.find(x => x.id === PROJECT_VIEW_ID);
   if (!p) { PROJECTS_VIEW = "list"; router(); return; }
+  function persist() { dbSet("projects", projects); }
 
   const client = p.clientId ? dbGet("clients", []).find(c => c.id === p.clientId) : null;
-  const contract = p.contractId ? dbGet("contracts", []).find(c => c.id === p.contractId) : null;
-  const quote = p.approvedQuoteId ? dbGet("quotes", []).find(q => q.id === p.approvedQuoteId) : null;
-  const team = dbGet("users", []).filter(u => (p.teamUserIds || []).includes(u.id));
+  const contracts = dbGet("contracts", []);
+  const quotes = dbGet("quotes", []);
+  const users = dbGet("users", []);
+  const contract = p.contractId ? contracts.find(c => c.id === p.contractId) : null;
+  const quote = p.approvedQuoteId ? quotes.find(q => q.id === p.approvedQuoteId) : null;
 
   const accEntries = dbGet("accProjects", []).filter(e => e.projectId === p.id);
   const revenue = accEntries.filter(e => e.type === "إيراد مشروع" || e.type === "فاتورة ضريبية").reduce((s, e) => s + Number(e.amount || 0), 0);
@@ -298,32 +303,41 @@ function renderProjectDetail(el) {
 
   el.innerHTML = `
     <div class="section-title-row">
-      <div><h2>${p.name}</h2><p>${projectTypeLabel(p.projectType)} · ${statusBadge2(p.status)}</p></div>
-      <div class="flex gap">
-        <button class="btn" id="backList2">رجوع لقائمة المشاريع</button>
-        <button class="btn primary" id="editProjectBtn">✏️ تعديل المشروع</button>
+      <div>
+        <input id="pd_name" value="${p.name}" style="font-size:19px;font-weight:800;border:1px solid transparent;background:transparent;padding:2px 4px;border-radius:6px;width:100%;max-width:420px;font-family:inherit">
+        <div class="flex gap center" style="margin-top:6px;flex-wrap:wrap">
+          <div class="pill-group" id="pd_typePills">${CONTRACT_TYPES.map(t => `<div class="pill ${p.projectType === t.key ? "active" : ""}" data-ptype="${t.key}" style="padding:4px 12px;font-size:11px">${projectTypeLabel(t.key)}</div>`).join("")}</div>
+          <select id="pd_status" style="width:auto;padding:5px 10px;font-size:12px;border-radius:20px;border:1px solid var(--border)">
+            ${PROJECT_STATUSES.map(s => `<option ${p.status === s ? "selected" : ""}>${s}</option>`).join("")}
+          </select>
+        </div>
       </div>
+      <button class="btn" id="backList2">رجوع لقائمة المشاريع</button>
     </div>
 
     <div class="grid cols-2">
       <div class="card">
         <h3>بيانات العميل</h3>
-        ${client ? `
+        <div id="pd_clientCard">${client ? `
           <div class="kv-row"><span class="k">الاسم</span><span class="v">${client.name}</span></div>
           <div class="kv-row"><span class="k">الجوال</span><span class="v">${client.phone || "-"}</span></div>
           <div class="kv-row"><span class="k">البريد</span><span class="v">${client.email || "-"}</span></div>
           <div class="kv-row"><span class="k">الرقم الضريبي</span><span class="v">${client.taxNumber || "-"}</span></div>
-        ` : `<p class="text-muted" style="font-size:13px">لا يوجد عميل مرتبط</p>`}
+          <button class="btn sm" id="pc_change" type="button" style="margin-top:10px">تغيير العميل</button>
+        ` : projectClientPickerHtml(p)}</div>
       </div>
 
       <div class="card">
         <h3>تفاصيل المشروع</h3>
-        <div class="kv-row"><span class="k">الموقع</span><span class="v">${p.location || "-"}</span></div>
-        <div class="kv-row"><span class="k">تاريخ البدء</span><span class="v">${p.startDate ? fmtDate(p.startDate) : "-"}</span></div>
-        <div class="kv-row"><span class="k">تاريخ الانتهاء المتوقع</span><span class="v">${p.endDate ? fmtDate(p.endDate) : "-"}</span></div>
-        <div style="margin-top:10px">
-          <div class="flex between" style="margin-bottom:4px"><span class="text-muted" style="font-size:12.5px">نسبة الإنجاز</span><strong style="font-size:12.5px">${p.completion || 0}%</strong></div>
-          <div class="progress-track"><div class="progress-fill ${p.completion >= 80 ? "success" : p.completion < 40 ? "warning" : ""}" style="width:${p.completion || 0}%"></div></div>
+        <div class="field"><label>الموقع</label><input id="pd_location" value="${p.location || ""}"></div>
+        <div class="grid cols-2">
+          <div class="field"><label>تاريخ البدء</label><input type="date" id="pd_start" value="${p.startDate || ""}"></div>
+          <div class="field"><label>تاريخ الانتهاء المتوقع</label><input type="date" id="pd_end" value="${p.endDate || ""}"></div>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <div class="flex between" style="margin-bottom:6px"><label style="margin-bottom:0">نسبة الإنجاز</label><strong style="font-size:12.5px" id="pd_completionLabel">${p.completion || 0}%</strong></div>
+          <input type="number" min="0" max="100" id="pd_completion" value="${p.completion || 0}" style="margin-bottom:8px">
+          <div class="progress-track"><div class="progress-fill ${p.completion >= 80 ? "success" : p.completion < 40 ? "warning" : ""}" id="pd_progressFill" style="width:${p.completion || 0}%"></div></div>
         </div>
       </div>
     </div>
@@ -331,30 +345,45 @@ function renderProjectDetail(el) {
     <div class="grid cols-2">
       <div class="card">
         <h3>العقد المرتبط</h3>
-        ${contract ? `
-          <div class="kv-row"><span class="k">النوع</span><span class="v">${projectTypeLabel(contract.type)}</span></div>
-          <div class="kv-row"><span class="k">القيمة الإجمالية</span><span class="v">${fmtMoney(contract.totalAmount)}</span></div>
-          <button class="btn sm" id="openContractBtn" style="margin-top:10px">فتح العقد</button>
-        ` : `<p class="text-muted" style="font-size:13px">لا يوجد عقد مرتبط</p>`}
+        <div class="field"><label>اختيار عقد من النظام</label>
+          <select id="pd_contract">
+            <option value="">— بدون —</option>
+            ${contracts.map(c => `<option value="${c.id}" ${p.contractId === c.id ? "selected" : ""}>${c.clientName} — ${projectTypeLabel(c.type)} — ${fmtMoney(c.totalAmount)}</option>`).join("")}
+          </select>
+        </div>
+        ${contract ? `<button class="btn sm" id="openContractBtn">فتح العقد</button>` : ""}
+        <hr style="border:none;border-top:1px dashed var(--border);margin:14px 0">
+        <label style="font-size:12.5px;font-weight:700;display:block;margin-bottom:6px">أو رفع صيغة عقد خارجي (ملف)</label>
+        <input type="file" id="pd_contractFile" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+        <div style="margin-top:8px">${p.externalContractFile ? `<span class="file-chip">📎 ${p.externalContractFile.name} <span data-rmcontractfile style="cursor:pointer;color:var(--danger);margin-inline-start:6px">✕</span></span>` : ""}</div>
       </div>
       <div class="card">
         <h3>جدول الكميات المعتمد</h3>
-        ${quote ? `
-          <div class="kv-row"><span class="k">رقم العرض</span><span class="v">${quote.number}</span></div>
-          <div class="kv-row"><span class="k">الإجمالي</span><span class="v">${fmtMoney(quoteTotal(quote))}</span></div>
-          <button class="btn sm" id="openQuoteBtn" style="margin-top:10px">فتح عرض السعر</button>
-        ` : `<p class="text-muted" style="font-size:13px">لا يوجد جدول كميات معتمد مرتبط</p>`}
+        <div class="field"><label>اختيار عرض سعر معتمد من النظام</label>
+          <select id="pd_quote">
+            <option value="">— بدون —</option>
+            ${quotes.map(q => `<option value="${q.id}" ${p.approvedQuoteId === q.id ? "selected" : ""}>${q.number} — ${q.client.name} — ${fmtMoney(quoteTotal(q))}</option>`).join("")}
+          </select>
+        </div>
+        ${quote ? `<button class="btn sm" id="openQuoteBtn">فتح عرض السعر</button>` : ""}
+        <hr style="border:none;border-top:1px dashed var(--border);margin:14px 0">
+        <label style="font-size:12.5px;font-weight:700;display:block;margin-bottom:6px">أو رفع ملف كميات خارجي</label>
+        <input type="file" id="pd_boqFile" accept=".pdf,.xls,.xlsx,.csv">
+        <div style="margin-top:8px">${p.externalBoqFile ? `<span class="file-chip">📎 ${p.externalBoqFile.name} <span data-rmboqfile style="cursor:pointer;color:var(--danger);margin-inline-start:6px">✕</span></span>` : ""}</div>
       </div>
     </div>
 
     <div class="card">
       <h3>الفنيون والمهندسون المتابعون</h3>
-      ${team.length ? `<div class="pill-group">${team.map(u => `<span class="badge blue">${u.name} — ${u.role}</span>`).join("")}</div>` : `<p class="text-muted" style="font-size:13px">لم يتم تعيين فريق متابعة بعد</p>`}
+      <div class="pill-group">
+        ${users.map(u => `<label class="chk" style="border:1px solid var(--border);border-radius:20px;padding:7px 14px"><input type="checkbox" data-team="${u.id}" ${(p.teamUserIds || []).includes(u.id) ? "checked" : ""}> ${u.name} <span class="text-muted" style="font-size:11px">(${u.role})</span></label>`).join("")}
+      </div>
     </div>
 
     <div class="card">
       <h3>المخططات</h3>
-      ${p.planFiles && p.planFiles.length ? `<div class="flex wrap">${p.planFiles.map(f => `<span class="file-chip">📎 ${f.name}</span>`).join("")}</div>` : `<p class="text-muted" style="font-size:13px">لا توجد مخططات مرفوعة بعد</p>`}
+      <input type="file" id="pd_plans" multiple accept=".dwg,.dxf,.pdf,application/pdf">
+      <div id="pd_plansList" class="flex wrap" style="margin-top:8px">${(p.planFiles || []).map((f, i) => `<span class="file-chip">📎 ${f.name} <span data-rmplan="${i}" style="cursor:pointer;color:var(--danger);margin-inline-start:6px">✕</span></span>`).join("")}</div>
     </div>
 
     <div class="card">
@@ -369,19 +398,91 @@ function renderProjectDetail(el) {
       </div>
     </div>
 
-    ${p.notes ? `<div class="card"><h3>ملاحظات</h3><p style="font-size:13px;white-space:pre-wrap">${p.notes}</p></div>` : ""}
+    <div class="card">
+      <h3>ملاحظات</h3>
+      <textarea id="pd_notes" placeholder="أي تفاصيل أخرى متعلقة بالمشروع...">${p.notes || ""}</textarea>
+    </div>
   `;
 
   document.getElementById("backList2").onclick = () => { PROJECTS_VIEW = "list"; router(); };
-  document.getElementById("editProjectBtn").onclick = () => {
-    DRAFT_PROJECT = Object.assign(newDraftProject(), JSON.parse(JSON.stringify(p)));
-    PROJECT_CLIENT_SEARCH = ""; PROJECT_SHOW_ADD_CLIENT = false;
-    PROJECTS_VIEW = "builder"; router();
+
+  // ---- بيانات أساسية (حفظ تلقائي) ----
+  document.getElementById("pd_name").onchange = (e) => { p.name = e.target.value.trim() || p.name; persist(); };
+  el.querySelectorAll("[data-ptype]").forEach(pill => pill.onclick = () => { p.projectType = pill.dataset.ptype; persist(); renderProjectDetail(el); });
+  document.getElementById("pd_status").onchange = (e) => { p.status = e.target.value; persist(); };
+  document.getElementById("pd_location").onchange = (e) => { p.location = e.target.value.trim(); persist(); };
+  document.getElementById("pd_start").onchange = (e) => { p.startDate = e.target.value; persist(); };
+  document.getElementById("pd_end").onchange = (e) => { p.endDate = e.target.value; persist(); };
+  document.getElementById("pd_completion").oninput = (e) => {
+    const v = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+    p.completion = v;
+    document.getElementById("pd_completionLabel").textContent = v + "%";
+    const fill = document.getElementById("pd_progressFill");
+    fill.style.width = v + "%";
+    fill.className = "progress-fill " + (v >= 80 ? "success" : v < 40 ? "warning" : "");
+    persist();
   };
+  document.getElementById("pd_notes").onchange = (e) => { p.notes = e.target.value.trim(); persist(); };
+
+  // ---- العميل ----
+  if (client) {
+    document.getElementById("pc_change").onclick = () => { p.clientId = ""; p.client = ""; persist(); renderProjectDetail(el); };
+  } else {
+    bindProjectClientPicker(el, p, () => { persist(); renderProjectDetail(el); });
+  }
+
+  // ---- العقد المرتبط ----
+  document.getElementById("pd_contract").onchange = (e) => { p.contractId = e.target.value; persist(); renderProjectDetail(el); };
   const openContractBtn = document.getElementById("openContractBtn");
   if (openContractBtn) openContractBtn.onclick = () => { CONTRACT_VIEW_ID = contract.id; CONTRACTS_VIEW = "view"; location.hash = "#/contracts"; };
+  document.getElementById("pd_contractFile").onchange = (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    p.externalContractFile = { name: f.name, type: f.type, size: f.size };
+    persist();
+    toast("تم إرفاق ملف العقد الخارجي");
+    renderProjectDetail(el);
+  };
+  const rmContractFile = el.querySelector("[data-rmcontractfile]");
+  if (rmContractFile) rmContractFile.onclick = () => { p.externalContractFile = null; persist(); renderProjectDetail(el); };
+
+  // ---- جدول الكميات المعتمد ----
+  document.getElementById("pd_quote").onchange = (e) => { p.approvedQuoteId = e.target.value; persist(); renderProjectDetail(el); };
   const openQuoteBtn = document.getElementById("openQuoteBtn");
   if (openQuoteBtn) openQuoteBtn.onclick = () => { VIEW_QUOTE_ID = quote.id; QUOTES_VIEW = "view"; location.hash = "#/quotes"; };
+  document.getElementById("pd_boqFile").onchange = (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    p.externalBoqFile = { name: f.name, type: f.type, size: f.size };
+    persist();
+    toast("تم إرفاق ملف الكميات الخارجي");
+    renderProjectDetail(el);
+  };
+  const rmBoqFile = el.querySelector("[data-rmboqfile]");
+  if (rmBoqFile) rmBoqFile.onclick = () => { p.externalBoqFile = null; persist(); renderProjectDetail(el); };
+
+  // ---- الفريق المتابع ----
+  el.querySelectorAll("[data-team]").forEach(chk => chk.onchange = () => {
+    const id = chk.dataset.team;
+    p.teamUserIds = p.teamUserIds || [];
+    if (chk.checked) { if (!p.teamUserIds.includes(id)) p.teamUserIds.push(id); }
+    else { p.teamUserIds = p.teamUserIds.filter(x => x !== id); }
+    persist();
+  });
+
+  // ---- المخططات ----
+  document.getElementById("pd_plans").onchange = (e) => {
+    p.planFiles = p.planFiles || [];
+    for (const f of e.target.files) p.planFiles.push({ name: f.name, type: f.type, size: f.size });
+    persist();
+    renderProjectDetail(el);
+  };
+  el.querySelectorAll("[data-rmplan]").forEach(x => x.onclick = () => {
+    p.planFiles.splice(Number(x.dataset.rmplan), 1);
+    persist();
+    renderProjectDetail(el);
+  });
+
   document.getElementById("openProjectAcc").onclick = () => { ACC_SELECTED_PROJECT = p.id; location.hash = "#/acc_projects"; };
 }
 
@@ -401,7 +502,9 @@ function migrateProjectsSchema() {
     if (p.startDate === undefined) { p.startDate = ""; changed = true; }
     if (p.endDate === undefined) { p.endDate = ""; changed = true; }
     if (p.contractId === undefined) { p.contractId = ""; changed = true; }
+    if (p.externalContractFile === undefined) { p.externalContractFile = null; changed = true; }
     if (p.approvedQuoteId === undefined) { p.approvedQuoteId = ""; changed = true; }
+    if (p.externalBoqFile === undefined) { p.externalBoqFile = null; changed = true; }
     if (p.teamUserIds === undefined) { p.teamUserIds = []; changed = true; }
     if (p.planFiles === undefined) { p.planFiles = []; changed = true; }
     if (p.notes === undefined) { p.notes = ""; changed = true; }

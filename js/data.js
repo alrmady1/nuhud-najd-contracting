@@ -154,9 +154,9 @@ function seedIfEmpty() {
     ]);
 
     dbSet("clients", [
-      { id: uid("cl"), name: "أ. محمد السبيعي", phone: "0501234567", email: "", taxNumber: "", address: "حي العليا، الرياض", notes: "", createdAt: new Date().toISOString() },
-      { id: uid("cl"), name: "شركة الأفق العقارية", phone: "0112223344", email: "info@alofoq.example", taxNumber: "300123456700003", address: "حي النرجس، الرياض", notes: "عميل مطور عقاري", createdAt: new Date().toISOString() },
-      { id: uid("cl"), name: "أ. سعود العنزي", phone: "0559876543", email: "", taxNumber: "", address: "حي السليمانية، الرياض", notes: "", createdAt: new Date().toISOString() },
+      { id: uid("cl"), name: "أ. محمد السبيعي", clientType: "فرد", phone: "0501234567", email: "", taxNumber: "", address: "حي العليا، الرياض", notes: "", createdAt: new Date().toISOString() },
+      { id: uid("cl"), name: "شركة الأفق العقارية", clientType: "شركة", phone: "0112223344", email: "info@alofoq.example", taxNumber: "300123456700003", address: "حي النرجس، الرياض", notes: "عميل مطور عقاري", createdAt: new Date().toISOString() },
+      { id: uid("cl"), name: "أ. سعود العنزي", clientType: "فرد", phone: "0559876543", email: "", taxNumber: "", address: "حي السليمانية، الرياض", notes: "", createdAt: new Date().toISOString() },
     ]);
 
     dbSet("quotes", []);
@@ -217,6 +217,22 @@ function migrateProfitMargin() {
     });
   });
   if (changed) dbSet("priceCatalog", cats);
+}
+
+/* ترحيل بسيط: يضيف تصنيف (فرد/شركة/جهة حكومية) للعملاء الحاليين حسب تخمين من الاسم */
+function migrateClientTypes() {
+  const clients = dbGet("clients", []);
+  let changed = false;
+  clients.forEach(c => {
+    if (c.clientType === undefined) {
+      const name = c.name || "";
+      if (/وزارة|هيئة|بلدية|أمانة|جهة حكومية/.test(name)) c.clientType = "جهة حكومية";
+      else if (/شركة|مؤسسة|مجموعة/.test(name)) c.clientType = "شركة";
+      else c.clientType = "فرد";
+      changed = true;
+    }
+  });
+  if (changed) dbSet("clients", clients);
 }
 
 function getCurrentUser() {

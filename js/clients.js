@@ -6,6 +6,12 @@ let CLIENTS_VIEW = "list"; // list | detail
 let CLIENT_VIEW_ID = null;
 let CLIENTS_SEARCH = "";
 
+const CLIENT_TYPES = ["فرد", "شركة", "جهة حكومية"];
+function clientTypeBadge(type) {
+  const map = { "فرد": "gray", "شركة": "blue", "جهة حكومية": "orange" };
+  return `<span class="badge ${map[type] || "gray"}">${type || "فرد"}</span>`;
+}
+
 function sameClientName(a, b) {
   return (a || "").trim().toLowerCase() === (b || "").trim().toLowerCase();
 }
@@ -43,7 +49,7 @@ function renderClientsList(el) {
       ${clients.length ? `
       <div class="table-wrap">
         <table class="data-table">
-          <thead><tr><th>اسم العميل</th><th>الجوال</th><th>الرقم الضريبي</th><th>العنوان</th><th>المشاريع</th><th></th></tr></thead>
+          <thead><tr><th>اسم العميل</th><th>النوع</th><th>الجوال</th><th>الرقم الضريبي</th><th>العنوان</th><th>المشاريع</th><th></th></tr></thead>
           <tbody>
             ${clients.map(c => {
               const projCount = projects.filter(p => sameClientName(p.client, c.name)).length;
@@ -52,6 +58,7 @@ function renderClientsList(el) {
               return `
               <tr>
                 <td><strong>${c.name}</strong></td>
+                <td>${clientTypeBadge(c.clientType)}</td>
                 <td>${c.phone || "-"}</td>
                 <td>${c.taxNumber || "-"}</td>
                 <td class="text-muted">${c.address || "-"}</td>
@@ -77,6 +84,9 @@ function openNewClientModal() {
     <div class="modal-head"><h3>عميل جديد</h3><button class="modal-close" id="mClose">×</button></div>
     <div class="grid cols-2">
       <div class="field" style="grid-column:span 2"><label>اسم العميل</label><input id="nc_name"></div>
+      <div class="field" style="grid-column:span 2"><label>تصنيف العميل</label>
+        <select id="nc_type">${CLIENT_TYPES.map(t => `<option>${t}</option>`).join("")}</select>
+      </div>
       <div class="field"><label>رقم الجوال</label><input id="nc_phone"></div>
       <div class="field"><label>البريد الإلكتروني</label><input id="nc_email"></div>
       <div class="field"><label>الرقم الضريبي</label><input id="nc_tax"></div>
@@ -94,6 +104,7 @@ function openNewClientModal() {
     const clients = dbGet("clients", []);
     clients.push({
       id: uid("cl"), name,
+      clientType: ov.querySelector("#nc_type").value,
       phone: ov.querySelector("#nc_phone").value.trim(),
       email: ov.querySelector("#nc_email").value.trim(),
       taxNumber: ov.querySelector("#nc_tax").value.trim(),
@@ -120,7 +131,7 @@ function renderClientDetail(el) {
 
   el.innerHTML = `
     <div class="section-title-row no-print">
-      <div><h2>${c.name}</h2><p>عميل منذ ${fmtDate(c.createdAt)}</p></div>
+      <div><h2>${c.name}</h2><p>عميل منذ ${fmtDate(c.createdAt)} · ${clientTypeBadge(c.clientType)}</p></div>
       <button class="btn" id="backClients">رجوع لقائمة العملاء</button>
     </div>
 
@@ -128,6 +139,9 @@ function renderClientDetail(el) {
       <div class="card">
         <h3>بيانات العميل</h3>
         <div class="field"><label>اسم العميل</label><input id="ec_name" value="${c.name}"></div>
+        <div class="field"><label>تصنيف العميل</label>
+          <select id="ec_type">${CLIENT_TYPES.map(t => `<option ${c.clientType === t ? "selected" : ""}>${t}</option>`).join("")}</select>
+        </div>
         <div class="grid cols-2">
           <div class="field"><label>رقم الجوال</label><input id="ec_phone" value="${c.phone || ""}"></div>
           <div class="field"><label>البريد الإلكتروني</label><input id="ec_email" value="${c.email || ""}"></div>
@@ -213,6 +227,7 @@ function renderClientDetail(el) {
     const list = dbGet("clients", []);
     const target = list.find(x => x.id === c.id);
     target.name = name;
+    target.clientType = document.getElementById("ec_type").value;
     target.phone = document.getElementById("ec_phone").value.trim();
     target.email = document.getElementById("ec_email").value.trim();
     target.taxNumber = document.getElementById("ec_tax").value.trim();
