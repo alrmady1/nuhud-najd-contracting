@@ -183,7 +183,10 @@ function renderContractBuilder(el) {
     wrap.innerHTML = d.payments.map((p, i) => `
       <div class="item-row" style="grid-template-columns: 1fr 1fr 1fr">
         <div style="font-size:12.5px;font-weight:700">الدفعة ${i + 1}</div>
-        <input type="number" min="0" max="100" step="0.01" value="${p.percent}" data-pct="${i}" placeholder="النسبة %">
+        <div class="flex" style="align-items:center;gap:6px">
+          <input type="number" min="0" max="100" step="0.01" value="${p.percent}" data-pct="${i}" placeholder="النسبة" style="flex:1">
+          <span class="text-muted" style="font-size:12.5px;font-weight:700">% (نسبة مئوية)</span>
+        </div>
         <div style="font-size:12.5px" data-pctamt="${i}">${fmtMoney((d.totalAmount || 0) * p.percent / 100)}</div>
       </div>
     `).join("");
