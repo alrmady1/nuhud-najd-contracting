@@ -63,27 +63,47 @@ function renderLogin() {
   const users = dbGet("users", []);
   document.getElementById("root").innerHTML = `
     <div class="login-wrap">
-      <div class="login-card">
+      <div class="login-card login-card-wide">
         <div class="login-logo"><img src="logo.png" alt="نهوض نجد للمقاولات"></div>
         <h1>نهوض نجد للمقاولات</h1>
-        <p class="sub">نظام إدارة المشاريع والمقاولات</p>
-        <div class="field" style="text-align:right">
-          <label>اختر المستخدم لتسجيل الدخول</label>
-          <select id="loginUser">
-            ${users.map(u => `<option value="${u.id}">${u.name} — ${u.role}</option>`).join("")}
-          </select>
+        <p class="sub">اختر اسمك وأدخل الرقم السري لتسجيل الدخول</p>
+        <div class="login-user-list">
+          ${users.map(u => `
+            <div class="login-user-row" data-loginrow="${u.id}">
+              <div class="login-user-info">
+                <div class="login-user-avatar">${initials(u.name)}</div>
+                <div class="login-user-text">
+                  <div class="login-user-name">${u.name}</div>
+                  <div class="login-user-role">${u.role}</div>
+                </div>
+              </div>
+              <input type="password" class="login-pass-input" data-passfor="${u.id}" placeholder="الرقم السري">
+              <button class="btn sm primary" data-loginbtn="${u.id}">دخول</button>
+            </div>`).join("")}
         </div>
-        <button id="loginBtn">تسجيل الدخول</button>
-        <p class="sub" style="margin:14px 0 0">هذا عرض تجريبي: يتم محاكاة الدخول باختيار المستخدم وصلاحياته المرتبطة بمسماه الوظيفي.</p>
+        <p class="sub" style="margin:16px 0 0">هذا عرض تجريبي: الرقم السري اختياري لكل موظف ويُدار من الإعدادات ← التحكم بالمستخدمين.</p>
       </div>
     </div>`;
-  document.getElementById("loginBtn").onclick = () => {
-    const id = document.getElementById("loginUser").value;
+
+  function attemptLogin(id) {
     const u = users.find(x => x.id === id);
+    if (!u) return;
+    const input = document.querySelector(`[data-passfor="${id}"]`);
+    const entered = input ? input.value : "";
+    if (u.password && u.password !== entered) {
+      toast("الرقم السري غير صحيح");
+      if (input) { input.value = ""; input.focus(); }
+      return;
+    }
     setCurrentUser(u);
     location.hash = "#/dashboard";
     renderApp();
-  };
+  }
+
+  document.querySelectorAll("[data-loginbtn]").forEach(b => b.onclick = () => attemptLogin(b.dataset.loginbtn));
+  document.querySelectorAll("[data-passfor]").forEach(inp => inp.onkeydown = (e) => {
+    if (e.key === "Enter") attemptLogin(inp.dataset.passfor);
+  });
 }
 
 /* ---------- الهيكل العام ---------- */

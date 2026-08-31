@@ -218,6 +218,7 @@ function renderCompanyTab(el) {
 /* ---------- تبويب المستخدمين ---------- */
 function renderUsersTab(el) {
   const users = dbGet("users", []);
+  const isGM = (getCurrentUser() || {}).role === "مدير عام";
   el.innerHTML = `
     <div class="card">
       <div class="flex between"><h3 class="mt-0">إضافة مستخدم جديد</h3></div>
@@ -225,25 +226,28 @@ function renderUsersTab(el) {
         <div class="field"><label>الاسم الكامل</label><input id="u_name"></div>
         <div class="field"><label>اسم المستخدم</label><input id="u_username"></div>
         <div class="field"><label>المسمى الوظيفي</label><select id="u_role">${ROLES.map(r => `<option value="${r}">${r}</option>`).join("")}</select></div>
+        <div class="field"><label>الرقم السري (اختياري)</label><input type="password" id="u_password" placeholder="اتركه فارغاً لعدم اشتراط رقم سري"></div>
       </div>
       <button class="btn primary" id="addUserBtn">+ إضافة مستخدم</button>
     </div>
 
     <div class="card">
       <h3>المستخدمون الحاليون (${users.length})</h3>
+      ${isGM ? `<p class="text-muted" style="font-size:12px;margin-top:-6px">يمكنك كمدير عام تعديل اسم الموظف واسم المستخدم مباشرة من الجدول</p>` : ""}
       <div class="table-wrap">
         <table class="data-table">
-          <thead><tr><th>الاسم</th><th>اسم المستخدم</th><th>المسمى الوظيفي</th><th></th></tr></thead>
+          <thead><tr><th>الاسم</th><th>اسم المستخدم</th><th>المسمى الوظيفي</th><th>الرقم السري</th><th></th></tr></thead>
           <tbody>
             ${users.map(u => `
               <tr>
-                <td>${u.name}</td>
-                <td class="text-muted">${u.username}</td>
+                <td>${isGM ? `<input data-editname="${u.id}" value="${u.name}" style="border:1px solid var(--border);border-radius:6px;padding:5px 8px;width:100%;min-width:130px">` : u.name}</td>
+                <td class="text-muted">${isGM ? `<input data-editusername="${u.id}" value="${u.username}" style="border:1px solid var(--border);border-radius:6px;padding:5px 8px;width:100%;min-width:110px">` : u.username}</td>
                 <td>
                   <select data-rolesel="${u.id}" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12.5px">
                     ${ROLES.map(r => `<option value="${r}" ${u.role === r ? "selected" : ""}>${r}</option>`).join("")}
                   </select>
                 </td>
+                <td><input type="password" data-editpass="${u.id}" value="${u.password || ""}" placeholder="بدون رقم سري" style="border:1px solid var(--border);border-radius:6px;padding:5px 8px;width:110px"></td>
                 <td><button class="btn sm danger" data-deluser="${u.id}">حذف</button></td>
               </tr>`).join("")}
           </tbody>
@@ -256,9 +260,10 @@ function renderUsersTab(el) {
     const name = document.getElementById("u_name").value.trim();
     const username = document.getElementById("u_username").value.trim();
     const role = document.getElementById("u_role").value;
+    const password = document.getElementById("u_password").value;
     if (!name || !username) { toast("يرجى إدخال الاسم واسم المستخدم"); return; }
     const list = dbGet("users", []);
-    list.push({ id: uid("u"), name, username, role });
+    list.push({ id: uid("u"), name, username, role, password });
     dbSet("users", list);
     logActivity(`تم إضافة مستخدم جديد "${name}" بمسمى وظيفي: ${role}`);
     toast("تم إضافة المستخدم");
@@ -272,6 +277,44 @@ function renderUsersTab(el) {
     dbSet("users", list);
     logActivity(`تم تغيير المسمى الوظيفي للمستخدم "${u.name}" إلى: ${u.role}`);
     toast("تم تحديث المسمى الوظيفي");
+    const cur = getCurrentUser();
+    if (cur && cur.id === u.id) setCurrentUser(u);
+  });
+
+  el.querySelectorAll("[data-editpass]").forEach(inp => inp.onchange = () => {
+    const list = dbGet("users", []);
+    const u = list.find(x => x.id === inp.dataset.editpass);
+    u.password = inp.value;
+    dbSet("users", list);
+    logActivity(`تم تحديث الرقم السري للمستخدم "${u.name}"`);
+    toast("تم تحديث الرقم السري");
+    const cur = getCurrentUser();
+    if (cur && cur.id === u.id) setCurrentUser(u);
+  });
+
+  el.querySelectorAll("[data-editname]").forEach(inp => inp.onchange = () => {
+    const list = dbGet("users", []);
+    const u = list.find(x => x.id === inp.dataset.editname);
+    const newName = inp.value.trim();
+    if (!newName) { toast("يرجى إدخال اسم صحيح"); inp.value = u.name; return; }
+    const oldName = u.name;
+    u.name = newName;
+    dbSet("users", list);
+    logActivity(`تم تعديل اسم الموظف "${oldName}" إلى: "${newName}"`);
+    toast("تم تحديث الاسم");
+    const cur = getCurrentUser();
+    if (cur && cur.id === u.id) setCurrentUser(u);
+  });
+
+  el.querySelectorAll("[data-editusername]").forEach(inp => inp.onchange = () => {
+    const list = dbGet("users", []);
+    const u = list.find(x => x.id === inp.dataset.editusername);
+    const newUsername = inp.value.trim();
+    if (!newUsername) { toast("يرجى إدخال اسم مستخدم صحيح"); inp.value = u.username; return; }
+    u.username = newUsername;
+    dbSet("users", list);
+    logActivity(`تم تعديل اسم المستخدم لـ "${u.name}" إلى: "${newUsername}"`);
+    toast("تم تحديث اسم المستخدم");
     const cur = getCurrentUser();
     if (cur && cur.id === u.id) setCurrentUser(u);
   });
