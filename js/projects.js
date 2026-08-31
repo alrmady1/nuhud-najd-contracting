@@ -53,7 +53,7 @@ function renderProjectsList(el) {
         <div class="contract-row-icon">🏗️</div>
         <div class="contract-row-info">
           <div class="contract-row-title">${p.name}</div>
-          <div class="contract-row-sub">${p.client || "بدون عميل"} · ${projectTypeLabel(p.projectType)} · ${p.location || "-"} · ${statusBadge2(p.status)}</div>
+          <div class="contract-row-sub">${p.client || "بدون عميل"} · ${projectTypeLabel(p.projectType)} · ${p.location || "-"} · ${statusBadge2(p.status)} ${delayedBadgeHtml(p)}</div>
         </div>
         <div style="min-width:110px">
           <div class="progress-track"><div class="progress-fill ${p.completion >= 80 ? "success" : p.completion < 40 ? "warning" : ""}" style="width:${p.completion || 0}%"></div></div>
@@ -99,6 +99,17 @@ function computeContractPaymentsProgress(contract, received) {
 function statusBadge2(status) {
   const map = { "قيد التنفيذ": "orange", "مكتمل": "green", "متوقف": "red" };
   return `<span class="badge ${map[status] || "gray"}">${status || "قيد التنفيذ"}</span>`;
+}
+
+function isProjectDelayed(p) {
+  if (!p || !p.endDate) return false;
+  if (p.status === "مكتمل") return false;
+  if ((p.completion || 0) >= 100) return false;
+  return p.endDate < todayISO();
+}
+
+function delayedBadgeHtml(p) {
+  return isProjectDelayed(p) ? `<span class="badge red">⚠️ متأخر عن الموعد المحدد</span>` : "";
 }
 
 /* ---------- منتقي العميل (نسخة خاصة بالمشاريع) ---------- */
@@ -328,6 +339,7 @@ function renderProjectDetail(el) {
           <select id="pd_status" style="width:auto;padding:5px 10px;font-size:12px;border-radius:20px;border:1px solid var(--border)">
             ${PROJECT_STATUSES.map(s => `<option ${p.status === s ? "selected" : ""}>${s}</option>`).join("")}
           </select>
+          ${delayedBadgeHtml(p)}
         </div>
       </div>
       <button class="btn" id="backList2">رجوع لقائمة المشاريع</button>

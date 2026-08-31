@@ -343,7 +343,7 @@ function renderDashboard(el) {
           <div style="margin-bottom:14px">
             <div class="flex between" style="margin-bottom:6px">
               <div>
-                <strong style="font-size:13px">${p.name}</strong>
+                <strong style="font-size:13px">${p.name}</strong> ${delayedBadgeHtml(p)}
                 <div class="text-muted" style="font-size:11.5px">${p.location}</div>
               </div>
               <strong style="font-size:13px">${p.completion}%</strong>

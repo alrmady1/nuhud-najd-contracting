@@ -31,7 +31,7 @@ function contractTemplateText(typeKey, d) {
 ${d.paymentsText || ""}
 
 المادة الثالثة - مدة التنفيذ
-يتم تنفيذ الأعمال المذكورة خلال المدة المتفق عليها بين الطرفين، ويجوز تمديدها بموافقة خطية من الطرفين في حال وجود أعمال إضافية أو ظروف قاهرة.
+${(!d.hideDuration && durationDays(d.startDate, d.endDate) !== null) ? `تبدأ أعمال التنفيذ بتاريخ ${fmtDate(d.startDate)} وتنتهي بتاريخ ${fmtDate(d.endDate)}، بمدة إجمالية قدرها ${durationDays(d.startDate, d.endDate)} يوماً. ` : ""}يتم تنفيذ الأعمال المذكورة خلال المدة المتفق عليها بين الطرفين، ويجوز تمديدها بموافقة خطية من الطرفين في حال وجود أعمال إضافية أو ظروف قاهرة.
 
 المادة الرابعة - التزامات المقاول
 1. تنفيذ الأعمال وفق الأصول الفنية والمواصفات المتفق عليها.
@@ -56,8 +56,21 @@ function newDraftContract() {
   return {
     id: null, type: "construction", clientName: "", clientId: "", taxNumber: "",
     totalAmount: 0, paymentsCount: 2, payments: [{ percent: 50 }, { percent: 50 }],
+    startDate: "", endDate: "", hideDuration: false,
     contractText: "", date: todayISO(),
   };
+}
+
+function durationDays(start, end) {
+  if (!start || !end) return null;
+  const diff = Math.round((new Date(end) - new Date(start)) / 86400000);
+  return diff >= 0 ? diff : null;
+}
+
+function durationLabelText(start, end) {
+  const days = durationDays(start, end);
+  if (days === null) return "أدخل تاريخي البداية والنهاية لاحتساب المدة";
+  return `المدة الإجمالية: ${days} يوم`;
 }
 
 function renderContracts(el) {
@@ -101,7 +114,7 @@ function renderContractsList(el) {
 }
 
 function paymentsSummaryText(d) {
-  return d.payments.map((p, i) => `الدفعة ${i + 1}: ${p.percent}% = ${fmtMoney((d.totalAmount || 0) * p.percent / 100)}`).join("\n");
+  return d.payments.map((p, i) => `الدفعة ${i + 1}: ${p.percent}% = ${fmtMoney((d.totalAmount || 0) * p.percent / 100)}${p.milestone ? " — " + p.milestone : ""}`).join("\n");
 }
 
 function renderContractBuilder(el) {
@@ -128,6 +141,18 @@ function renderContractBuilder(el) {
         <div class="field"><label>رقم الهوية / السجل التجاري</label><input id="c_id" value="${d.clientId}"></div>
         <div class="field"><label>الرقم الضريبي</label><input id="c_tax" value="${d.taxNumber}"></div>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="flex between" style="align-items:center;margin-bottom:10px">
+        <h3 class="mt-0">مدة المشروع</h3>
+        <label class="chk"><input type="checkbox" id="c_hideDuration" ${d.hideDuration ? "checked" : ""}> إخفاء مدة المشروع من نص العقد</label>
+      </div>
+      <div class="grid cols-2">
+        <div class="field"><label>تاريخ بداية المشروع</label><input type="date" id="c_startDate" value="${d.startDate}"></div>
+        <div class="field"><label>تاريخ نهاية المشروع</label><input type="date" id="c_endDate" value="${d.endDate}"></div>
+      </div>
+      <div class="text-muted" style="font-size:12.5px" id="c_durationLabel">${durationLabelText(d.startDate, d.endDate)}</div>
     </div>
 
     <div class="card">
@@ -165,6 +190,10 @@ function renderContractBuilder(el) {
   document.getElementById("c_name").oninput = (e) => d.clientName = e.target.value;
   document.getElementById("c_id").oninput = (e) => d.clientId = e.target.value;
   document.getElementById("c_tax").oninput = (e) => d.taxNumber = e.target.value;
+  document.getElementById("c_hideDuration").onchange = (e) => d.hideDuration = e.target.checked;
+  const updateDurationLabel = () => { document.getElementById("c_durationLabel").textContent = durationLabelText(d.startDate, d.endDate); };
+  document.getElementById("c_startDate").oninput = (e) => { d.startDate = e.target.value; updateDurationLabel(); };
+  document.getElementById("c_endDate").oninput = (e) => { d.endDate = e.target.value; updateDurationLabel(); };
   document.getElementById("c_total").oninput = (e) => {
     d.totalAmount = Number(e.target.value) || 0;
     document.getElementById("c_vatAmount").textContent = fmtMoney(d.totalAmount * VAT_RATE);
@@ -188,13 +217,16 @@ function renderContractBuilder(el) {
   function renderPaymentsRows() {
     const wrap = document.getElementById("paymentsRows");
     wrap.innerHTML = d.payments.map((p, i) => `
-      <div class="item-row" style="grid-template-columns: 1fr 1fr 1fr">
-        <div style="font-size:12.5px;font-weight:700">الدفعة ${i + 1}</div>
-        <div class="flex" style="align-items:center;gap:6px">
-          <input type="number" min="0" max="100" step="0.01" value="${p.percent}" data-pct="${i}" placeholder="النسبة" style="width:65px;flex:none">
-          <span class="text-muted" style="font-size:12.5px;font-weight:700">% (نسبة مئوية)</span>
+      <div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fafbfc">
+        <div class="item-row" style="grid-template-columns: 1fr 1fr 1fr;margin-bottom:0">
+          <div style="font-size:12.5px;font-weight:700">الدفعة ${i + 1}</div>
+          <div class="flex" style="align-items:center;gap:6px">
+            <input type="number" min="0" max="100" step="0.01" value="${p.percent}" data-pct="${i}" placeholder="النسبة" style="width:65px;flex:none">
+            <span class="text-muted" style="font-size:12.5px;font-weight:700">% (نسبة مئوية)</span>
+          </div>
+          <div style="font-size:12.5px" data-pctamt="${i}">${fmtMoney((d.totalAmount || 0) * p.percent / 100)}</div>
         </div>
-        <div style="font-size:12.5px" data-pctamt="${i}">${fmtMoney((d.totalAmount || 0) * p.percent / 100)}</div>
+        <input data-milestone="${i}" value="${p.milestone || ""}" placeholder="تفصيلة الدفعة — مثال: عند توقيع العقد / عند الانتهاء من الصبة" style="width:100%;margin-top:8px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-size:12.5px">
       </div>
     `).join("");
     wrap.querySelectorAll("[data-pct]").forEach(inp => inp.oninput = () => {
@@ -203,6 +235,9 @@ function renderContractBuilder(el) {
       document.querySelector(`[data-pctamt="${i}"]`).textContent = fmtMoney((d.totalAmount || 0) * d.payments[i].percent / 100);
       const sum = d.payments.reduce((s, p) => s + Number(p.percent || 0), 0);
       document.getElementById("percentSumLabel").textContent = `مجموع النسب: ${sum}% ${sum !== 100 ? "⚠️ يجب أن يساوي المجموع 100%" : "✅"}`;
+    });
+    wrap.querySelectorAll("[data-milestone]").forEach(inp => inp.oninput = () => {
+      d.payments[Number(inp.dataset.milestone)].milestone = inp.value;
     });
   }
 
