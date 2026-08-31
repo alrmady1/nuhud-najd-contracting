@@ -80,6 +80,22 @@ function renderProjectsList(el) {
   });
 }
 
+function computeContractPaymentsProgress(contract, received) {
+  if (!contract || !contract.payments || !contract.payments.length) return null;
+  const total = Number(contract.totalAmount) || 0;
+  let cumulative = 0;
+  let remainingCount = 0;
+  contract.payments.forEach(pmt => {
+    cumulative += total * (Number(pmt.percent) || 0) / 100;
+    if (cumulative > received + 0.01) remainingCount++;
+  });
+  return {
+    remainingAmount: Math.max(0, total - received),
+    remainingCount,
+    totalPayments: contract.payments.length,
+  };
+}
+
 function statusBadge2(status) {
   const map = { "قيد التنفيذ": "orange", "مكتمل": "green", "متوقف": "red" };
   return `<span class="badge ${map[status] || "gray"}">${status || "قيد التنفيذ"}</span>`;
@@ -300,6 +316,7 @@ function renderProjectDetail(el) {
   const accEntries = dbGet("accProjects", []).filter(e => e.projectId === p.id);
   const revenue = accEntries.filter(e => e.type === "إيراد مشروع" || e.type === "فاتورة ضريبية").reduce((s, e) => s + Number(e.amount || 0), 0);
   const expenses = accEntries.filter(e => ["دفعة مشتريات", "مصروف مواد", "مصروف عمال", "مصروف نثرية"].includes(e.type)).reduce((s, e) => s + Number(e.amount || 0), 0);
+  const paymentsProgress = computeContractPaymentsProgress(contract, revenue);
 
   el.innerHTML = `
     <div class="section-title-row">
@@ -391,8 +408,13 @@ function renderProjectDetail(el) {
         <h3 class="mt-0">محاسبة المشروع</h3>
         <button class="btn sm primary" id="openProjectAcc">فتح محاسبة المشروع (إضافة فواتير ومصاريف)</button>
       </div>
-      <div class="grid cols-3">
-        <div class="stat-card"><div class="label">إجمالي الإيرادات</div><div class="value success">${fmtMoney(revenue)}</div></div>
+      <div class="grid cols-4">
+        <div class="stat-card"><div class="label">إجمالي الدفعات الواصلة</div><div class="value success">${fmtMoney(revenue)}</div></div>
+        <div class="stat-card">
+          <div class="label">المبالغ المتبقية حتى نهاية المشروع</div>
+          <div class="value warning">${paymentsProgress ? fmtMoney(paymentsProgress.remainingAmount) : "-"}</div>
+          <div class="text-muted" style="font-size:11px;margin-top:4px">${paymentsProgress ? `(${paymentsProgress.remainingCount} من ${paymentsProgress.totalPayments} دفعات متبقية)` : "لا يوجد عقد مرتبط لحساب الدفعات"}</div>
+        </div>
         <div class="stat-card"><div class="label">إجمالي المصاريف</div><div class="value danger">${fmtMoney(expenses)}</div></div>
         <div class="stat-card"><div class="label">صافي الربح</div><div class="value ${revenue - expenses >= 0 ? "success" : "danger"}">${fmtMoney(revenue - expenses)}</div></div>
       </div>
