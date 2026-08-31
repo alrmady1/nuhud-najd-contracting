@@ -27,7 +27,10 @@ function contractTemplateText(typeKey, d) {
 الطرف الثاني: ${d.clientName || "..............."} ، الرقم الضريبي: ${d.taxNumber || "..............."}
 (ويشار إليه فيما يلي بـ "المالك")
 ${d.ownerContactName ? `الشخص المسؤول بالتواصل عن المالك: ${d.ownerContactName} (${d.ownerContactRole || "غير محدد"})${d.ownerContactPhone ? " ، جوال: " + d.ownerContactPhone : ""}${d.ownerContactEmail ? " ، بريد إلكتروني: " + d.ownerContactEmail : ""}` : ""}
-
+${d.projectDescription ? `
+وصف المشروع:
+${d.projectDescription}
+` : ""}
 وقد اتفق الطرفان على ما يلي:
 
 المادة الأولى - موضوع العقد
@@ -65,6 +68,7 @@ function newDraftContract() {
   return {
     id: null, type: "construction", linkedClientId: "", clientName: "", taxNumber: "",
     ownerContactName: "", ownerContactRole: "", ownerContactPhone: "", ownerContactEmail: "",
+    projectDescription: "",
     totalAmount: 0, paymentsCount: 2, payments: [{ percent: 50 }, { percent: 50 }],
     startDate: "", durationDays: "", endDate: "", hideDuration: false,
     contractText: "", date: todayISO(),
@@ -223,6 +227,12 @@ function renderContractBuilder(el) {
     </div>
 
     <div class="card">
+      <h3>وصف المشروع</h3>
+      <p class="text-muted" style="font-size:12px;margin-top:-6px">شرح مبسط عن المشروع، يُضاف تلقائياً إلى نص العقد كمقدمة</p>
+      <div class="field"><textarea id="c_projectDesc" placeholder="مثال: يتضمن المشروع بناء فيلا سكنية من دورين على مساحة ٤٠٠ م٢..." style="min-height:90px">${d.projectDescription}</textarea></div>
+    </div>
+
+    <div class="card">
       <div class="flex between" style="align-items:center;margin-bottom:10px">
         <h3 class="mt-0">مدة المشروع</h3>
         <label class="chk"><input type="checkbox" id="c_hideDuration" ${d.hideDuration ? "checked" : ""}> إخفاء مدة المشروع من نص العقد</label>
@@ -271,6 +281,7 @@ function renderContractBuilder(el) {
   document.getElementById("c_ownerRole").oninput = (e) => d.ownerContactRole = e.target.value;
   document.getElementById("c_ownerPhone").oninput = (e) => d.ownerContactPhone = e.target.value;
   document.getElementById("c_ownerEmail").oninput = (e) => d.ownerContactEmail = e.target.value;
+  document.getElementById("c_projectDesc").oninput = (e) => d.projectDescription = e.target.value;
   document.getElementById("c_hideDuration").onchange = (e) => d.hideDuration = e.target.checked;
   const updateDurationLabel = () => { document.getElementById("c_durationLabel").textContent = durationLabelText(d); };
   document.getElementById("c_startDate").oninput = (e) => { d.startDate = e.target.value; updateDurationLabel(); };
