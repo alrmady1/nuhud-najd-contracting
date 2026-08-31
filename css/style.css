@@ -253,6 +253,11 @@ table.data-table tr:hover td { background: #fafbfc; }
 .badge.red { background: #fbe6e2; color: var(--danger); }
 .badge.blue { background: #e3ecfa; color: #1d4ed8; }
 
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; font-size: 13px; text-decoration: none; margin-inline-start: 6px; }
+.icon-btn.wa { background: #e5f6ec; }
+.icon-btn.call { background: #e3ecfa; }
+.icon-btn:hover { filter: brightness(0.95); }
+
 .empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); }
 .empty-state .ic { font-size: 34px; margin-bottom: 10px; }
 

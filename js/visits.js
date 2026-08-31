@@ -39,6 +39,14 @@ function renderVisits(el) {
   el.querySelectorAll("[data-open]").forEach(b => b.onclick = () => { VISIT_MODAL = { id: b.dataset.open }; openVisitModal(); });
 }
 
+function contactIconsHtml(phone) {
+  if (!phone) return "";
+  const digits = phone.replace(/[^\d+]/g, "");
+  let waNumber = digits.replace(/^\+/, "");
+  if (waNumber.startsWith("0")) waNumber = "966" + waNumber.slice(1);
+  return `<a href="https://wa.me/${waNumber}" target="_blank" rel="noopener" class="icon-btn wa" title="تواصل عبر واتساب">💬</a><a href="tel:${digits}" class="icon-btn call" title="اتصال">📞</a>`;
+}
+
 function locationDisplay(loc) {
   if (!loc) return "-";
   if (/^https?:\/\//i.test(loc.trim())) {
@@ -226,7 +234,7 @@ function openVisitModal(prefill) {
   const html = `
     <div class="modal-head"><h3>زيارة موقع — ${v.clientName}</h3><button class="modal-close" id="mClose">×</button></div>
     <div class="grid cols-2">
-      <div class="kv-row"><span class="k">العميل</span><span class="v">${v.clientName} (${v.clientPhone || "-"})</span></div>
+      <div class="kv-row"><span class="k">العميل</span><span class="v">${v.clientName} (${v.clientPhone || "-"})${contactIconsHtml(v.clientPhone)}</span></div>
       <div class="kv-row"><span class="k">الموقع</span><span class="v">${locationDisplay(v.location)}</span></div>
       <div class="kv-row"><span class="k">الوقت المطلوب</span><span class="v">${v.requestedTime ? new Date(v.requestedTime).toLocaleString("ar-SA") : "-"}</span></div>
       <div class="kv-row"><span class="k">المشرف المكلف</span><span class="v">${v.assignedToName || "-"}</span></div>
