@@ -94,7 +94,8 @@ function renderApp() {
   const root = document.getElementById("root");
   root.innerHTML = `
     <div class="app-shell">
-      <aside class="sidebar">
+      <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+      <aside class="sidebar" id="sidebarAside">
         <div class="sidebar-brand">
           <div class="logo">ن ن</div>
           <div class="name">نهوض نجد للمقاولات<small>نظام إدارة المشاريع</small></div>
@@ -108,7 +109,10 @@ function renderApp() {
       </aside>
       <div class="main">
         <div class="topbar">
-          <h2 id="pageTitle">لوحة التحكم</h2>
+          <div class="flex gap center">
+            <button class="hamburger-btn" id="hamburgerBtn" type="button" title="القائمة">☰</button>
+            <h2 id="pageTitle">لوحة التحكم</h2>
+          </div>
           <div class="flex gap center">
             <div class="notif-bell-wrap">
               <button class="notif-bell" id="notifBellBtn" type="button" title="التنبيهات">
@@ -144,9 +148,29 @@ function renderApp() {
     }
   });
 
+  document.getElementById("hamburgerBtn").onclick = (e) => { e.stopPropagation(); toggleSidebar(); };
+  document.getElementById("sidebarBackdrop").onclick = () => closeSidebar();
+
   renderSidebar();
   renderNotifBell();
   router();
+}
+
+/* ---------- القائمة الجانبية المنسدلة ---------- */
+function openSidebar() {
+  document.getElementById("sidebarAside").classList.add("open");
+  document.getElementById("sidebarBackdrop").classList.add("open");
+}
+function closeSidebar() {
+  const aside = document.getElementById("sidebarAside");
+  const backdrop = document.getElementById("sidebarBackdrop");
+  if (aside) aside.classList.remove("open");
+  if (backdrop) backdrop.classList.remove("open");
+}
+function toggleSidebar() {
+  const aside = document.getElementById("sidebarAside");
+  if (!aside) return;
+  if (aside.classList.contains("open")) closeSidebar(); else openSidebar();
 }
 
 /* ---------- التنبيهات ---------- */
@@ -246,7 +270,7 @@ function renderSidebar() {
   nav.innerHTML = html;
 
   nav.querySelectorAll("[data-route]").forEach(el => {
-    el.onclick = () => { location.hash = "#/" + el.dataset.route; };
+    el.onclick = () => { location.hash = "#/" + el.dataset.route; closeSidebar(); };
   });
   nav.querySelectorAll("[data-group-toggle]").forEach(el => {
     el.onclick = () => { el.parentElement.classList.toggle("open"); };
