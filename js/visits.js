@@ -68,25 +68,36 @@ function openModalShell(innerHtml, wide) {
   return ov;
 }
 
-function openVisitModal() {
+function openVisitModal(prefill) {
   const users = dbGet("users", []).filter(u => u.role === "مراقب موقع");
 
   if (VISIT_MODAL === "create") {
+    prefill = prefill || {};
     const html = `
       <div class="modal-head"><h3>طلب زيارة موقع جديد</h3><button class="modal-close" id="mClose">×</button></div>
       <div class="grid cols-2">
-        <div class="field"><label>اسم العميل</label><input id="v_clientName"></div>
-        <div class="field"><label>رقم جوال العميل</label><input id="v_clientPhone"></div>
+        <div class="field" style="position:relative">
+          <label>اسم العميل</label>
+          <input id="v_clientName" value="${prefill.clientName || ""}" autocomplete="off" placeholder="اكتب للبحث في سجل العملاء...">
+          <div id="v_clientResults" class="client-suggest-box"></div>
+        </div>
+        <div class="field">
+          <label>رقم جوال العميل</label>
+          <input id="v_clientPhone" value="${prefill.clientPhone || ""}">
+        </div>
+        <div class="field" style="grid-column:span 2;margin-top:-8px">
+          <button class="btn sm" id="v_addClientBtn" type="button">+ إضافة عميل جديد</button>
+        </div>
         <div class="field" style="grid-column:span 2">
           <label>موقع الزيارة (رابط خرائط جوجل)</label>
-          <input id="v_location" type="url" placeholder="https://maps.app.goo.gl/...">
+          <input id="v_location" type="url" placeholder="https://maps.app.goo.gl/..." value="${prefill.location || ""}">
           <div class="hint">افتح الموقع في خرائط جوجل، اضغط "مشاركة"، ثم انسخ الرابط والصقه هنا</div>
         </div>
-        <div class="field"><label>الوقت المطلوب للزيارة</label><input type="datetime-local" id="v_time"></div>
+        <div class="field"><label>الوقت المطلوب للزيارة</label><input type="datetime-local" id="v_time" value="${prefill.time || ""}"></div>
         <div class="field"><label>المشرف المكلف</label>
-          <select id="v_assigned">${users.map(u => `<option value="${u.id}">${u.name}</option>`).join("") || `<option value="">لا يوجد مشرفون مسجلون</option>`}</select>
+          <select id="v_assigned">${users.map(u => `<option value="${u.id}" ${prefill.assigned === u.id ? "selected" : ""}>${u.name}</option>`).join("") || `<option value="">لا يوجد مشرفون مسجلون</option>`}</select>
         </div>
-        <div class="field" style="grid-column:span 2"><label>ملاحظات / تعليمات الزيارة</label><textarea id="v_notes"></textarea></div>
+        <div class="field" style="grid-column:span 2"><label>ملاحظات / تعليمات الزيارة</label><textarea id="v_notes">${prefill.notes || ""}</textarea></div>
         <div class="field" style="grid-column:span 2">
           <label>رفع المخططات (AutoCAD أو PDF)</label>
           <input type="file" id="v_plans" multiple accept=".dwg,.dxf,.pdf,application/pdf">
@@ -94,7 +105,7 @@ function openVisitModal() {
           <div id="v_plansList" class="flex wrap"></div>
         </div>
         <div class="field" style="grid-column:span 2">
-          <label>إضافة صور للزيارة (اختياري)</label>
+          <label>إضافة صور للموقع الحالي (إن وجدت)</label>
           <input type="file" id="v_photos" multiple accept="image/*">
           <div id="v_photosList" class="photo-grid"></div>
         </div>
@@ -105,11 +116,49 @@ function openVisitModal() {
       </div>
     `;
     const ov = openModalShell(html, true);
-    let plans = [];
-    let photos = [];
+    let plans = (prefill.plans || []).slice();
+    let photos = (prefill.photos || []).slice();
+    let linkedClientId = prefill.linkedClientId || "";
+    ov.querySelector("#v_plansList").innerHTML = plans.map(p => `<span class="file-chip">📎 ${p.name}</span>`).join("");
+    renderPhotoGrid(ov.querySelector("#v_photosList"), photos, false);
 
     ov.querySelector("#mClose").onclick = closeModal;
     ov.querySelector("#v_cancel").onclick = closeModal;
+
+    const nameInput = ov.querySelector("#v_clientName");
+    const resultsBox = ov.querySelector("#v_clientResults");
+    const renderClientSuggestions = (query) => {
+      const q = (query || "").trim().toLowerCase();
+      if (!q) { resultsBox.innerHTML = ""; return; }
+      const clients = dbGet("clients", []).filter(c => (c.name || "").toLowerCase().includes(q) || (c.phone || "").includes(q));
+      resultsBox.innerHTML = clients.length ? clients.slice(0, 8).map(c => `
+        <div class="client-suggest" data-pick="${c.id}"><strong>${c.name}</strong> <span class="text-muted" style="font-size:11.5px">${c.phone || ""}</span></div>
+      `).join("") : `<div class="text-muted" style="font-size:12px;padding:8px 4px">لا يوجد عملاء مطابقون</div>`;
+      resultsBox.querySelectorAll("[data-pick]").forEach(row => row.onclick = () => {
+        const client = dbGet("clients", []).find(x => x.id === row.dataset.pick);
+        nameInput.value = client.name;
+        ov.querySelector("#v_clientPhone").value = client.phone || "";
+        linkedClientId = client.id;
+        resultsBox.innerHTML = "";
+      });
+    };
+    nameInput.oninput = () => { linkedClientId = ""; renderClientSuggestions(nameInput.value); };
+
+    ov.querySelector("#v_addClientBtn").onclick = () => {
+      const capturedPrefill = {
+        clientName: nameInput.value.trim(),
+        clientPhone: ov.querySelector("#v_clientPhone").value.trim(),
+        location: ov.querySelector("#v_location").value.trim(),
+        time: ov.querySelector("#v_time").value,
+        assigned: ov.querySelector("#v_assigned").value,
+        notes: ov.querySelector("#v_notes").value.trim(),
+        plans, photos,
+      };
+      openNewClientModal((newClient) => {
+        VISIT_MODAL = "create";
+        openVisitModal({ ...capturedPrefill, clientName: newClient.name, clientPhone: newClient.phone || capturedPrefill.clientPhone, linkedClientId: newClient.id });
+      });
+    };
 
     ov.querySelector("#v_plans").onchange = async (e) => {
       for (const f of e.target.files) {
@@ -137,6 +186,7 @@ function openVisitModal() {
         id: uid("v"),
         clientName,
         clientPhone: ov.querySelector("#v_clientPhone").value.trim(),
+        linkedClientId,
         location,
         requestedTime: ov.querySelector("#v_time").value,
         assignedTo: assignedUser ? assignedUser.id : "",
