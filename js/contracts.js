@@ -24,8 +24,9 @@ function contractTemplateText(typeKey, d) {
 
 أبرم هذا العقد بتاريخ ${fmtDate(d.date)} بين كل من:
 الطرف الأول: مؤسسة نهوض نجد للمقاولات (ويشار إليها فيما يلي بـ "المقاول")
-الطرف الثاني: ${d.clientName || "..............."} ، سجل/هوية رقم: ${d.clientId || "..............."} ، الرقم الضريبي: ${d.taxNumber || "..............."}
+الطرف الثاني: ${d.clientName || "..............."} ، الرقم الضريبي: ${d.taxNumber || "..............."}
 (ويشار إليه فيما يلي بـ "المالك")
+${d.ownerContactName ? `الشخص المسؤول بالتواصل عن المالك: ${d.ownerContactName} (${d.ownerContactRole || "غير محدد"})${d.ownerContactPhone ? " ، جوال: " + d.ownerContactPhone : ""}${d.ownerContactEmail ? " ، بريد إلكتروني: " + d.ownerContactEmail : ""}` : ""}
 
 وقد اتفق الطرفان على ما يلي:
 
@@ -58,12 +59,71 @@ ${(!d.hideDuration && contractEndDate(d)) ? `تبدأ أعمال التنفيذ 
 .......................................                .......................................`;
 }
 
+let CONTRACT_CLIENT_SEARCH = "";
+
 function newDraftContract() {
   return {
-    id: null, type: "construction", clientName: "", clientId: "", taxNumber: "",
+    id: null, type: "construction", linkedClientId: "", clientName: "", taxNumber: "",
+    ownerContactName: "", ownerContactRole: "", ownerContactPhone: "", ownerContactEmail: "",
     totalAmount: 0, paymentsCount: 2, payments: [{ percent: 50 }, { percent: 50 }],
     startDate: "", durationDays: "", endDate: "", hideDuration: false,
     contractText: "", date: todayISO(),
+  };
+}
+
+/* ---------- منتقي العميل (نسخة خاصة بالعقود) ---------- */
+function contractClientPickerHtml(d) {
+  if (d.linkedClientId) {
+    return `
+      <div class="flex between" style="align-items:center;background:#f8f9fb;border:1px solid var(--border);border-radius:8px;padding:12px 14px">
+        <div><strong>${d.clientName}</strong></div>
+        <button class="btn sm" id="ccp_change" type="button">تغيير العميل</button>
+      </div>`;
+  }
+  return `
+    <div class="field" style="margin-bottom:10px">
+      <label>البحث عن عميل (بالاسم أو رقم الجوال)</label>
+      <input id="ccp_search" placeholder="اكتب للبحث في سجل العملاء..." autocomplete="off" value="${CONTRACT_CLIENT_SEARCH}">
+      <div id="ccp_results" class="client-suggest-box"></div>
+    </div>
+    <button class="btn sm" id="ccp_toggleAdd" type="button">+ إضافة عميل جديد</button>
+  `;
+}
+
+function renderContractClientResults(container, query, d, onChange) {
+  if (!container) return;
+  const q = (query || "").trim().toLowerCase();
+  if (!q) { container.innerHTML = ""; return; }
+  const clients = dbGet("clients", []).filter(c => (c.name || "").toLowerCase().includes(q) || (c.phone || "").includes(q));
+  container.innerHTML = clients.length ? clients.slice(0, 8).map(c => `
+    <div class="client-suggest" data-pick="${c.id}"><strong>${c.name}</strong> <span class="text-muted" style="font-size:11.5px">${c.phone || ""}</span></div>
+  `).join("") : `<div class="text-muted" style="font-size:12px;padding:8px 4px">لا يوجد عملاء مطابقون</div>`;
+  container.querySelectorAll("[data-pick]").forEach(row => row.onclick = () => {
+    const client = dbGet("clients", []).find(x => x.id === row.dataset.pick);
+    d.linkedClientId = client.id; d.clientName = client.name; d.taxNumber = client.taxNumber || d.taxNumber;
+    CONTRACT_CLIENT_SEARCH = "";
+    onChange();
+  });
+}
+
+function bindContractClientPicker(el, d, onChange) {
+  const changeBtn = document.getElementById("ccp_change");
+  if (changeBtn) { changeBtn.onclick = () => { d.linkedClientId = ""; d.clientName = ""; onChange(); }; return; }
+
+  const search = document.getElementById("ccp_search");
+  if (search) {
+    renderContractClientResults(document.getElementById("ccp_results"), CONTRACT_CLIENT_SEARCH, d, onChange);
+    search.oninput = () => { CONTRACT_CLIENT_SEARCH = search.value; renderContractClientResults(document.getElementById("ccp_results"), CONTRACT_CLIENT_SEARCH, d, onChange); };
+  }
+  const toggleBtn = document.getElementById("ccp_toggleAdd");
+  if (toggleBtn) toggleBtn.onclick = () => {
+    openNewClientModal((newClient) => {
+      d.linkedClientId = newClient.id;
+      d.clientName = newClient.name;
+      d.taxNumber = newClient.taxNumber || d.taxNumber;
+      CONTRACT_CLIENT_SEARCH = "";
+      onChange();
+    });
   };
 }
 
@@ -148,10 +208,17 @@ function renderContractBuilder(el) {
 
     <div class="card">
       <h3>بيانات العميل</h3>
-      <div class="grid cols-3">
-        <div class="field"><label>اسم العميل</label><input id="c_name" value="${d.clientName}"></div>
-        <div class="field"><label>رقم الهوية / السجل التجاري</label><input id="c_id" value="${d.clientId}"></div>
-        <div class="field"><label>الرقم الضريبي</label><input id="c_tax" value="${d.taxNumber}"></div>
+      ${contractClientPickerHtml(d)}
+    </div>
+
+    <div class="card">
+      <h3>بيانات الشخص المسؤول من طرف المالك</h3>
+      <p class="text-muted" style="font-size:12px;margin-top:-6px">الشخص الذي سيتم التواصل معه ميدانياً (قد يكون المالك نفسه أو من ينوب عنه)</p>
+      <div class="grid cols-2">
+        <div class="field"><label>الاسم</label><input id="c_ownerName" value="${d.ownerContactName}"></div>
+        <div class="field"><label>الصفة / الوظيفة</label><input id="c_ownerRole" value="${d.ownerContactRole}" placeholder="مثال: مالك، مهندس، مشرف، وكيل..."></div>
+        <div class="field"><label>رقم الجوال</label><input id="c_ownerPhone" value="${d.ownerContactPhone}"></div>
+        <div class="field"><label>البريد الإلكتروني</label><input id="c_ownerEmail" value="${d.ownerContactEmail}"></div>
       </div>
     </div>
 
@@ -199,9 +266,11 @@ function renderContractBuilder(el) {
 
   el.querySelectorAll("[data-type]").forEach(p => p.onclick = () => { d.type = p.dataset.type; renderContractBuilder(el); });
 
-  document.getElementById("c_name").oninput = (e) => d.clientName = e.target.value;
-  document.getElementById("c_id").oninput = (e) => d.clientId = e.target.value;
-  document.getElementById("c_tax").oninput = (e) => d.taxNumber = e.target.value;
+  bindContractClientPicker(el, d, () => renderContractBuilder(el));
+  document.getElementById("c_ownerName").oninput = (e) => d.ownerContactName = e.target.value;
+  document.getElementById("c_ownerRole").oninput = (e) => d.ownerContactRole = e.target.value;
+  document.getElementById("c_ownerPhone").oninput = (e) => d.ownerContactPhone = e.target.value;
+  document.getElementById("c_ownerEmail").oninput = (e) => d.ownerContactEmail = e.target.value;
   document.getElementById("c_hideDuration").onchange = (e) => d.hideDuration = e.target.checked;
   const updateDurationLabel = () => { document.getElementById("c_durationLabel").textContent = durationLabelText(d); };
   document.getElementById("c_startDate").oninput = (e) => { d.startDate = e.target.value; updateDurationLabel(); };

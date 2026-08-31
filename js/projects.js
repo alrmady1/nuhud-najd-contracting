@@ -101,7 +101,7 @@ function statusBadge2(status) {
   return `<span class="badge ${map[status] || "gray"}">${status || "قيد التنفيذ"}</span>`;
 }
 
-const UPCOMING_DEADLINE_DAYS = 20; // يُنبَّه قبل الموعد بهذا العدد من الأيام
+const DEADLINE_WARNING_RATIO = 0.20; // يُنبَّه عندما تقل المدة المتبقية عن 20% من إجمالي مدة المشروع
 
 // تاريخ الانتهاء الفعلي للمشروع: يُفضَّل تاريخ انتهاء العقد المرتبط (بداية العقد + مدة التنفيذ
 // بالأيام) إن وُجد، وإلا يُستخدم تاريخ الانتهاء المُدخل يدوياً في المشروع نفسه.
@@ -116,6 +116,24 @@ function projectEffectiveEndDate(p) {
   return (p && p.endDate) || "";
 }
 
+// تاريخ بداية المشروع الفعلي (يُفضَّل تاريخ بداية العقد المرتبط إن وُجد)
+function projectEffectiveStartDate(p) {
+  if (p && p.contractId) {
+    const contract = dbGet("contracts", []).find(c => c.id === p.contractId);
+    if (contract && contract.startDate) return contract.startDate;
+  }
+  return (p && p.startDate) || "";
+}
+
+// إجمالي مدة المشروع بالأيام (من تاريخ البداية الفعلي إلى تاريخ النهاية الفعلي)
+function projectTotalDurationDays(p) {
+  const start = projectEffectiveStartDate(p);
+  const end = projectEffectiveEndDate(p);
+  if (!start || !end) return null;
+  const diff = Math.round((new Date(end) - new Date(start)) / 86400000);
+  return diff > 0 ? diff : null;
+}
+
 function projectDaysRemaining(p) {
   const end = projectEffectiveEndDate(p);
   if (!end) return null;
@@ -123,17 +141,40 @@ function projectDaysRemaining(p) {
   return Math.round((new Date(end) - new Date(todayISO())) / 86400000);
 }
 
+// حالة موعد المشروع: 'delayed' (تجاوز الموعد) | 'warning' (المدة المتبقية أقل من 20% من الإجمالي) | 'ok' | null
+function projectDeadlineStatus(p) {
+  const daysRemaining = projectDaysRemaining(p);
+  if (daysRemaining === null) return null;
+  if (daysRemaining < 0) return { state: "delayed", daysRemaining };
+  const totalDays = projectTotalDurationDays(p);
+  if (totalDays && daysRemaining / totalDays < DEADLINE_WARNING_RATIO) {
+    return { state: "warning", daysRemaining, totalDays };
+  }
+  return { state: "ok", daysRemaining };
+}
+
 function isProjectDelayed(p) {
-  const days = projectDaysRemaining(p);
-  return days !== null && days < 0;
+  const s = projectDeadlineStatus(p);
+  return !!s && s.state === "delayed";
 }
 
 function delayedBadgeHtml(p) {
-  const days = projectDaysRemaining(p);
-  if (days === null) return "";
-  if (days < 0) return `<span class="badge red">⚠️ متأخر عن الموعد المحدد (${Math.abs(days)} يوم)</span>`;
-  if (days <= UPCOMING_DEADLINE_DAYS) return `<span class="badge orange">⏰ تبقى ${days} يوم على الموعد المحدد</span>`;
+  const s = projectDeadlineStatus(p);
+  if (!s) return "";
+  if (s.state === "delayed") return `<span class="badge red">⚠️ متأخر عن الموعد المحدد (${Math.abs(s.daysRemaining)} يوم)</span>`;
+  if (s.state === "warning") return `<span class="badge orange">⏰ تبقى ${s.daysRemaining} يوم على الموعد المحدد</span>`;
   return "";
+}
+
+// شريط توضيحي أوسع (لصفحة تفاصيل/إنجاز المشروع) يوضح عدد الأيام المتبقية ونسبتها من إجمالي المدة
+function deadlineBannerHtml(p) {
+  const s = projectDeadlineStatus(p);
+  if (!s || s.state === "ok") return "";
+  if (s.state === "delayed") {
+    return `<div style="margin-top:10px;background:#fbe6e2;border-radius:8px;padding:10px 12px;font-size:12.5px;color:var(--danger);font-weight:700">⚠️ المشروع متأخر عن الموعد المحدد لانتهائه بمقدار ${Math.abs(s.daysRemaining)} يوم</div>`;
+  }
+  const pct = s.totalDays ? Math.round((s.daysRemaining / s.totalDays) * 100) : null;
+  return `<div style="margin-top:10px;background:#fdecd6;border-radius:8px;padding:10px 12px;font-size:12.5px;color:var(--warning);font-weight:700">⏰ متبقٍ على الموعد المحدد لانتهاء المشروع ${s.daysRemaining} يوم${pct !== null ? ` (أقل من ${pct}% من إجمالي مدة المشروع)` : ""}</div>`;
 }
 
 /* ---------- منتقي العميل (نسخة خاصة بالمشاريع) ---------- */
@@ -392,6 +433,7 @@ function renderProjectDetail(el) {
           <div class="flex between" style="margin-bottom:6px"><label style="margin-bottom:0">نسبة الإنجاز</label><strong style="font-size:12.5px" id="pd_completionLabel">${p.completion || 0}%</strong></div>
           <input type="number" min="0" max="100" id="pd_completion" value="${p.completion || 0}" style="margin-bottom:8px">
           <div class="progress-track"><div class="progress-fill ${p.completion >= 80 ? "success" : p.completion < 40 ? "warning" : ""}" id="pd_progressFill" style="width:${p.completion || 0}%"></div></div>
+          ${deadlineBannerHtml(p)}
         </div>
       </div>
     </div>
@@ -569,14 +611,15 @@ function checkProjectDeadlineNotifications() {
   const projects = dbGet("projects", []);
   let changed = false;
   projects.forEach(p => {
-    const days = projectDaysRemaining(p);
-    const inWarningWindow = days !== null && days >= 0 && days <= UPCOMING_DEADLINE_DAYS;
+    const s = projectDeadlineStatus(p);
+    const inWarningWindow = !!s && s.state === "warning";
     if (inWarningWindow && !p.deadlineWarningNotified) {
       addNotification({
         type: "project_deadline",
         title: "اقتراب موعد انتهاء مشروع",
-        message: `تبقى ${days} يوم على الموعد المحدد لمشروع "${p.name}" حسب العقد المرتبط به.`,
+        message: `متبقٍ على مشروع "${p.name}" ${s.daysRemaining} يوم فقط حتى الموعد المحدد لانتهائه (أقل من 20% من إجمالي مدة المشروع).`,
         targetRoles: ["مدير عام", "مدير النظام"],
+        targetUserIds: p.teamUserIds || [], // الفنيون والمهندسون والمتابعون المسؤولون عن المشروع
         relatedRoute: "projects",
       });
       p.deadlineWarningNotified = true;

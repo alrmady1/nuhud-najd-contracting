@@ -79,7 +79,7 @@ function renderClientsList(el) {
   });
 }
 
-function openNewClientModal() {
+function openNewClientModal(onSaved) {
   const html = `
     <div class="modal-head"><h3>عميل جديد</h3><button class="modal-close" id="mClose">×</button></div>
     <div class="grid cols-2">
@@ -102,7 +102,7 @@ function openNewClientModal() {
     const name = ov.querySelector("#nc_name").value.trim();
     if (!name) { toast("يرجى إدخال اسم العميل"); return; }
     const clients = dbGet("clients", []);
-    clients.push({
+    const newClient = {
       id: uid("cl"), name,
       clientType: ov.querySelector("#nc_type").value,
       phone: ov.querySelector("#nc_phone").value.trim(),
@@ -111,11 +111,13 @@ function openNewClientModal() {
       address: ov.querySelector("#nc_address").value.trim(),
       notes: ov.querySelector("#nc_notes").value.trim(),
       createdAt: new Date().toISOString(),
-    });
+    };
+    clients.push(newClient);
     dbSet("clients", clients);
     toast("تم إضافة العميل");
     closeModal();
-    router();
+    if (typeof onSaved === "function") onSaved(newClient);
+    else router();
   };
 }
 
