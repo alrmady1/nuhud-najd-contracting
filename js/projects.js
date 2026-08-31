@@ -317,6 +317,7 @@ function renderProjectDetail(el) {
   const revenue = accEntries.filter(e => e.type === "إيراد مشروع" || e.type === "فاتورة ضريبية").reduce((s, e) => s + Number(e.amount || 0), 0);
   const expenses = accEntries.filter(e => ["دفعة مشتريات", "مصروف مواد", "مصروف عمال", "مصروف نثرية"].includes(e.type)).reduce((s, e) => s + Number(e.amount || 0), 0);
   const paymentsProgress = computeContractPaymentsProgress(contract, revenue);
+  const projectCustodies = dbGet("custodies", []).filter(c => c.scopeType === "project" && c.projectId === p.id);
 
   el.innerHTML = `
     <div class="section-title-row">
@@ -421,6 +422,24 @@ function renderProjectDetail(el) {
     </div>
 
     <div class="card">
+      <div class="flex between" style="align-items:center;margin-bottom:10px">
+        <h3 class="mt-0">عُهد المشروع</h3>
+        <button class="btn sm" id="openProjectCustody">فتح صفحة العهد</button>
+      </div>
+      ${projectCustodies.length ? projectCustodies.map(c => `
+        <div class="timeline-item">
+          <div class="dot"></div>
+          <div class="body">
+            <div class="flex between">
+              <span style="font-size:13px"><strong>${c.employeeName}</strong> — ${c.purpose || "بدون غرض محدد"}</span>
+              <strong style="font-size:13px;color:${custodyBalance(c) >= 0 ? "var(--success)" : "var(--danger)"}">${fmtMoney(custodyBalance(c))}</strong>
+            </div>
+            <div class="meta"><span class="badge ${c.status === "مفتوحة" ? "orange" : "gray"}">${c.status}</span></div>
+          </div>
+        </div>`).join("") : `<p class="text-muted" style="font-size:13px">لا توجد عُهد مسجلة على هذا المشروع</p>`}
+    </div>
+
+    <div class="card">
       <h3>ملاحظات</h3>
       <textarea id="pd_notes" placeholder="أي تفاصيل أخرى متعلقة بالمشروع...">${p.notes || ""}</textarea>
     </div>
@@ -506,6 +525,7 @@ function renderProjectDetail(el) {
   });
 
   document.getElementById("openProjectAcc").onclick = () => { ACC_SELECTED_PROJECT = p.id; location.hash = "#/acc_projects"; };
+  document.getElementById("openProjectCustody").onclick = () => { ACC_GENERAL_TAB = "custody"; location.hash = "#/acc_general"; };
 }
 
 /* ترحيل بسيط: يضيف الحقول الجديدة لمشاريع مزروعة مسبقاً بدون كسر أي بيانات موجودة */

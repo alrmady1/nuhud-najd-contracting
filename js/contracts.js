@@ -27,7 +27,7 @@ function contractTemplateText(typeKey, d) {
 يلتزم المقاول بتنفيذ أعمال ${typeLabel.replace("عقد ", "")} للمشروع الخاص بالمالك وفقاً للمواصفات والمخططات المعتمدة من الطرفين.
 
 المادة الثانية - القيمة الإجمالية
-يبلغ إجمالي قيمة العقد مبلغ ${fmtMoney(d.totalAmount || 0)} (شامل/غير شامل ضريبة القيمة المضافة حسب الاتفاق)، تُسدد على دفعات وفق الجدول التالي:
+تبلغ قيمة العقد مبلغ ${fmtMoney(d.totalAmount || 0)} غير شامل ضريبة القيمة المضافة، ويضاف إليها ضريبة القيمة المضافة بنسبة 15% وقدرها ${fmtMoney((d.totalAmount || 0) * VAT_RATE)}، ليصبح الإجمالي شامل الضريبة مبلغ ${fmtMoney((d.totalAmount || 0) * (1 + VAT_RATE))}، تُسدد على دفعات وفق الجدول التالي:
 ${d.paymentsText || ""}
 
 المادة الثالثة - مدة التنفيذ
@@ -133,8 +133,12 @@ function renderContractBuilder(el) {
     <div class="card">
       <h3>القيمة الإجمالية والدفعات</h3>
       <div class="grid cols-2">
-        <div class="field"><label>إجمالي قيمة المشروع (ر.س)</label><input type="number" min="0" id="c_total" value="${d.totalAmount}"></div>
+        <div class="field"><label>إجمالي قيمة المشروع (ر.س) — غير شامل الضريبة</label><input type="number" min="0" id="c_total" value="${d.totalAmount}"></div>
         <div class="field"><label>عدد الدفعات</label><input type="number" min="1" max="12" id="c_count" value="${d.paymentsCount}"></div>
+      </div>
+      <div class="grid cols-2" style="margin-bottom:14px">
+        <div class="kv-row"><span class="k">ضريبة القيمة المضافة (15%)</span><span class="v" id="c_vatAmount">${fmtMoney((d.totalAmount || 0) * VAT_RATE)}</span></div>
+        <div class="kv-row"><span class="k">الإجمالي شامل الضريبة</span><span class="v" id="c_grandTotal">${fmtMoney((d.totalAmount || 0) * (1 + VAT_RATE))}</span></div>
       </div>
       <div id="paymentsRows"></div>
       <div class="text-muted" style="font-size:12.5px;margin-top:6px" id="percentSumLabel">مجموع النسب: ${percentSum}% ${percentSum !== 100 ? "⚠️ يجب أن يساوي المجموع 100%" : "✅"}</div>
@@ -161,7 +165,12 @@ function renderContractBuilder(el) {
   document.getElementById("c_name").oninput = (e) => d.clientName = e.target.value;
   document.getElementById("c_id").oninput = (e) => d.clientId = e.target.value;
   document.getElementById("c_tax").oninput = (e) => d.taxNumber = e.target.value;
-  document.getElementById("c_total").oninput = (e) => { d.totalAmount = Number(e.target.value) || 0; renderPaymentsRows(); };
+  document.getElementById("c_total").oninput = (e) => {
+    d.totalAmount = Number(e.target.value) || 0;
+    document.getElementById("c_vatAmount").textContent = fmtMoney(d.totalAmount * VAT_RATE);
+    document.getElementById("c_grandTotal").textContent = fmtMoney(d.totalAmount * (1 + VAT_RATE));
+    renderPaymentsRows();
+  };
   document.getElementById("c_count").onchange = (e) => {
     let n = Math.max(1, Math.min(12, Number(e.target.value) || 1));
     const even = Math.floor((100 / n) * 100) / 100;

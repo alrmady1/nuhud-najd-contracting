@@ -178,7 +178,25 @@ function printInvoice(id) {
 }
 
 /* ================= المحاسبة العامة ================= */
+let ACC_GENERAL_TAB = "expenses"; // expenses | custody
+
 function renderAccGeneral(el) {
+  el.innerHTML = `
+    <div class="section-title-row"><div><h2>المحاسبة العامة</h2><p>المصاريف الإدارية العامة للشركة وعُهد الموظفين</p></div></div>
+    <div class="tabs">
+      <div class="tab-btn ${ACC_GENERAL_TAB === "expenses" ? "active" : ""}" data-gtab="expenses">المصاريف الإدارية</div>
+      <div class="tab-btn ${ACC_GENERAL_TAB === "custody" ? "active" : ""}" data-gtab="custody">العهد</div>
+    </div>
+    <div id="accGeneralBody"></div>
+  `;
+  el.querySelectorAll("[data-gtab]").forEach(t => t.onclick = () => { ACC_GENERAL_TAB = t.dataset.gtab; renderAccGeneral(el); });
+
+  const body = document.getElementById("accGeneralBody");
+  if (ACC_GENERAL_TAB === "custody") renderCustodyTab(body);
+  else renderGeneralExpensesTab(body);
+}
+
+function renderGeneralExpensesTab(el) {
   const list = dbGet("accGeneral", []).slice().sort((a, b) => (b.date > a.date ? 1 : -1));
   const total = list.reduce((s, e) => s + Number(e.amount || 0), 0);
   const byCat = {};
@@ -186,10 +204,7 @@ function renderAccGeneral(el) {
   list.forEach(e => byCat[e.category] = (byCat[e.category] || 0) + Number(e.amount || 0));
 
   el.innerHTML = `
-    <div class="section-title-row">
-      <div><h2>المحاسبة العامة</h2><p>المصاريف الإدارية العامة للشركة</p></div>
-      <button class="btn primary" id="addGeneralBtn">+ إضافة مصروف</button>
-    </div>
+    <div class="flex between" style="margin-bottom:14px"><div></div><button class="btn primary" id="addGeneralBtn">+ إضافة مصروف</button></div>
 
     <div class="grid cols-4" style="margin-bottom:18px">
       ${GENERAL_CATS.map(c => `<div class="stat-card"><div class="label">${c}</div><div class="value">${fmtMoney(byCat[c])}</div></div>`).join("")}
@@ -221,8 +236,187 @@ function renderAccGeneral(el) {
   el.querySelectorAll("[data-delgen]").forEach(b => b.onclick = () => {
     if (!confirm("حذف هذا المصروف؟")) return;
     dbSet("accGeneral", dbGet("accGeneral", []).filter(x => x.id !== b.dataset.delgen));
-    renderAccGeneral(el);
+    renderGeneralExpensesTab(el);
   });
+}
+
+/* ================= العهد ================= */
+function custodyBalance(c) {
+  return (c.transactions || []).reduce((s, t) => s + (t.type === "إيداع" ? Number(t.amount) || 0 : -(Number(t.amount) || 0)), 0);
+}
+
+function renderCustodyTab(el) {
+  const custodies = dbGet("custodies", []).slice().sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  el.innerHTML = `
+    <div class="flex between" style="margin-bottom:14px"><div></div><button class="btn primary" id="addCustodyBtn">+ عهدة جديدة</button></div>
+    ${custodies.length ? custodies.map(c => {
+      const balance = custodyBalance(c);
+      return `
+      <div class="contract-row" data-opencustody="${c.id}">
+        <div class="contract-row-icon">💼</div>
+        <div class="contract-row-info">
+          <div class="contract-row-title">${c.employeeName}</div>
+          <div class="contract-row-sub">${c.scopeType === "project" ? "مشروع: " + (c.projectName || "-") : "مصاريف عامة"} · ${c.purpose || ""} · <span class="badge ${c.status === "مفتوحة" ? "orange" : "gray"}">${c.status}</span></div>
+        </div>
+        <div class="contract-row-amount" style="color:${balance >= 0 ? "var(--success)" : "var(--danger)"}">الرصيد: ${fmtMoney(balance)}</div>
+        <div class="contract-row-actions no-print">
+          <button class="btn sm" data-opencustody="${c.id}">فتح</button>
+          <button class="btn sm danger" data-delcustody="${c.id}">حذف</button>
+        </div>
+      </div>`;
+    }).join("") : `<div class="card empty-state"><div class="ic">💼</div>لا توجد عُهد مسجلة بعد</div>`}
+  `;
+
+  document.getElementById("addCustodyBtn").onclick = () => openNewCustodyModal(el);
+  el.querySelectorAll("[data-opencustody]").forEach(x => x.onclick = () => openCustodyDetailModal(x.dataset.opencustody, el));
+  el.querySelectorAll("[data-delcustody]").forEach(x => x.onclick = (e) => {
+    e.stopPropagation();
+    if (!confirm("حذف هذه العهدة وكل حركاتها؟")) return;
+    dbSet("custodies", dbGet("custodies", []).filter(c => c.id !== x.dataset.delcustody));
+    renderCustodyTab(el);
+  });
+}
+
+function openNewCustodyModal(el) {
+  const users = dbGet("users", []);
+  const projects = dbGet("projects", []);
+  const html = `
+    <div class="modal-head"><h3>عهدة جديدة</h3><button class="modal-close" id="mClose">×</button></div>
+    <div class="field"><label>الموظف</label>
+      <select id="cu_emp">${users.map(u => `<option value="${u.id}">${u.name} — ${u.role}</option>`).join("")}</select>
+    </div>
+    <div class="field"><label>نوع العهدة</label>
+      <div class="pill-group">
+        <div class="pill active" data-scope="general">مصاريف عامة</div>
+        <div class="pill" data-scope="project">مشروع محدد</div>
+      </div>
+    </div>
+    <div class="field" id="cu_projectField" style="display:none"><label>المشروع</label>
+      <select id="cu_project">${projects.map(p => `<option value="${p.id}">${p.name}</option>`).join("")}</select>
+    </div>
+    <div class="field"><label>الغرض من العهدة</label><input id="cu_purpose" placeholder="مثال: مصاريف نثرية ميدانية"></div>
+    <div class="grid cols-2">
+      <div class="field"><label>المبلغ الابتدائي (ر.س)</label><input type="number" min="0" step="0.01" id="cu_amount"></div>
+      <div class="field"><label>التاريخ</label><input type="date" id="cu_date" value="${todayISO()}"></div>
+    </div>
+    <div class="flex gap"><button class="btn primary" id="cu_save">حفظ العهدة</button><button class="btn" id="cu_cancel">إلغاء</button></div>
+  `;
+  const ov = openModalShell(html);
+  ov.querySelector("#mClose").onclick = closeModal;
+  ov.querySelector("#cu_cancel").onclick = closeModal;
+
+  let scopeType = "general";
+  ov.querySelectorAll("[data-scope]").forEach(pill => pill.onclick = () => {
+    scopeType = pill.dataset.scope;
+    ov.querySelectorAll("[data-scope]").forEach(p => p.classList.toggle("active", p === pill));
+    ov.querySelector("#cu_projectField").style.display = scopeType === "project" ? "block" : "none";
+  });
+
+  ov.querySelector("#cu_save").onclick = () => {
+    const empId = ov.querySelector("#cu_emp").value;
+    const emp = users.find(u => u.id === empId);
+    const amount = Number(ov.querySelector("#cu_amount").value) || 0;
+    if (!emp) { toast("يرجى اختيار الموظف"); return; }
+    if (amount <= 0) { toast("يرجى إدخال مبلغ ابتدائي صحيح"); return; }
+    const project = scopeType === "project" ? projects.find(p => p.id === ov.querySelector("#cu_project").value) : null;
+    if (scopeType === "project" && !project) { toast("يرجى اختيار المشروع"); return; }
+
+    const custodies = dbGet("custodies", []);
+    const date = ov.querySelector("#cu_date").value || todayISO();
+    custodies.push({
+      id: uid("cu"), employeeId: emp.id, employeeName: emp.name,
+      scopeType, projectId: project ? project.id : "", projectName: project ? project.name : "",
+      purpose: ov.querySelector("#cu_purpose").value.trim(),
+      status: "مفتوحة", createdAt: new Date().toISOString(),
+      transactions: [{ id: uid("cutx"), type: "إيداع", amount, date, note: "المبلغ الابتدائي للعهدة" }],
+    });
+    dbSet("custodies", custodies);
+    toast("تم إنشاء العهدة بنجاح");
+    closeModal();
+    renderCustodyTab(el);
+  };
+}
+
+function openCustodyDetailModal(custodyId, el) {
+  const custodies = dbGet("custodies", []);
+  const c = custodies.find(x => x.id === custodyId);
+  if (!c) return;
+  const balance = custodyBalance(c);
+  const txns = (c.transactions || []).slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+  const html = `
+    <div class="modal-head"><h3>عهدة — ${c.employeeName}</h3><button class="modal-close" id="mClose">×</button></div>
+    <div class="kv-row"><span class="k">نوع العهدة</span><span class="v">${c.scopeType === "project" ? "مشروع: " + (c.projectName || "-") : "مصاريف عامة"}</span></div>
+    <div class="kv-row"><span class="k">الغرض</span><span class="v">${c.purpose || "-"}</span></div>
+    <div class="kv-row"><span class="k">الحالة</span><span class="v"><span class="badge ${c.status === "مفتوحة" ? "orange" : "gray"}">${c.status}</span></span></div>
+    <div class="grand-total-box" style="margin:14px 0">
+      <div>الرصيد الحالي</div>
+      <div class="num" style="color:${balance >= 0 ? "var(--success)" : "var(--danger)"}">${fmtMoney(balance)}</div>
+    </div>
+    <div class="flex gap no-print" style="margin-bottom:14px">
+      <button class="btn sm primary" id="cu_addDeposit">+ إضافة رصيد</button>
+      <button class="btn sm danger" id="cu_addExpense">+ تسجيل مصروف / فاتورة</button>
+      <button class="btn sm" id="cu_toggleStatus" style="margin-inline-start:auto">${c.status === "مفتوحة" ? "إغلاق العهدة" : "إعادة فتح العهدة"}</button>
+    </div>
+    <h3 style="font-size:14px">حركات العهدة</h3>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>النوع</th><th>المبلغ</th><th>التاريخ</th><th>ملاحظات</th></tr></thead>
+        <tbody>
+          ${txns.length ? txns.map(t => `
+            <tr>
+              <td><span class="badge ${t.type === "إيداع" ? "green" : "red"}">${t.type}</span></td>
+              <td><strong>${t.type === "إيداع" ? "+" : "-"} ${fmtMoney(t.amount)}</strong></td>
+              <td>${fmtDate(t.date)}</td>
+              <td class="text-muted">${t.note || "-"}</td>
+            </tr>`).join("") : `<tr><td colspan="4" class="text-muted" style="text-align:center;padding:14px">لا توجد حركات بعد</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+    <div class="flex gap" style="margin-top:16px"><button class="btn" id="cu_close">إغلاق</button></div>
+  `;
+  const ov = openModalShell(html, true);
+  ov.querySelector("#mClose").onclick = closeModal;
+  ov.querySelector("#cu_close").onclick = closeModal;
+  ov.querySelector("#cu_addDeposit").onclick = () => openAddCustodyTxnModal(c.id, "إيداع", el);
+  ov.querySelector("#cu_addExpense").onclick = () => openAddCustodyTxnModal(c.id, "مصروف", el);
+  ov.querySelector("#cu_toggleStatus").onclick = () => {
+    c.status = c.status === "مفتوحة" ? "مغلقة" : "مفتوحة";
+    dbSet("custodies", custodies);
+    toast("تم تحديث حالة العهدة");
+    openCustodyDetailModal(c.id, el);
+  };
+}
+
+function openAddCustodyTxnModal(custodyId, type, el) {
+  const html = `
+    <div class="modal-head"><h3>${type === "إيداع" ? "إضافة رصيد للعهدة" : "تسجيل مصروف / فاتورة على العهدة"}</h3><button class="modal-close" id="mClose">×</button></div>
+    <div class="grid cols-2">
+      <div class="field"><label>المبلغ (ر.س)</label><input type="number" min="0" step="0.01" id="ct_amount"></div>
+      <div class="field"><label>التاريخ</label><input type="date" id="ct_date" value="${todayISO()}"></div>
+    </div>
+    <div class="field"><label>ملاحظات ${type === "مصروف" ? "(وصف المصروف / رقم الفاتورة)" : ""}</label><textarea id="ct_note"></textarea></div>
+    <div class="flex gap"><button class="btn primary" id="ct_save">حفظ</button><button class="btn" id="ct_cancel">إلغاء</button></div>
+  `;
+  const ov = openModalShell(html);
+  ov.querySelector("#mClose").onclick = closeModal;
+  ov.querySelector("#ct_cancel").onclick = closeModal;
+  ov.querySelector("#ct_save").onclick = () => {
+    const amount = Number(ov.querySelector("#ct_amount").value) || 0;
+    if (amount <= 0) { toast("يرجى إدخال مبلغ صحيح"); return; }
+    const custodies = dbGet("custodies", []);
+    const c = custodies.find(x => x.id === custodyId);
+    c.transactions = c.transactions || [];
+    c.transactions.push({
+      id: uid("cutx"), type,
+      amount, date: ov.querySelector("#ct_date").value || todayISO(),
+      note: ov.querySelector("#ct_note").value.trim(),
+    });
+    dbSet("custodies", custodies);
+    toast(type === "إيداع" ? "تم إضافة الرصيد" : "تم تسجيل المصروف");
+    closeModal();
+    openCustodyDetailModal(custodyId, el);
+  };
 }
 
 function openGeneralExpenseModal(el) {
@@ -253,7 +447,7 @@ function openGeneralExpenseModal(el) {
     dbSet("accGeneral", list);
     toast("تم إضافة المصروف الإداري");
     closeModal();
-    renderAccGeneral(el);
+    renderGeneralExpensesTab(el);
   };
 }
 
