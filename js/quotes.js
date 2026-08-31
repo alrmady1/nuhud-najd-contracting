@@ -99,7 +99,7 @@ function renderQuotesList(el) {
                 <td>${q.number}</td>
                 <td>${q.client.name}</td>
                 <td>${q.projectName}</td>
-                <td>${q.location}</td>
+                <td>${locationDisplay(q.location)}</td>
                 <td><strong>${fmtMoney(quoteTotal(q))}</strong></td>
                 <td>${fmtDate(q.date)}</td>
                 <td>
@@ -309,7 +309,14 @@ function renderQuoteBuilder(el) {
       <h3>بيانات المشروع</h3>
       <div class="grid cols-2">
         <div class="field"><label>اسم المشروع</label><input id="f_projectName" value="${q.projectName}"></div>
-        <div class="field"><label>موقع المشروع</label><input id="f_location" value="${q.location}"></div>
+        <div class="field">
+          <label>موقع المشروع (رابط خرائط جوجل)</label>
+          <div class="flex gap">
+            <input id="f_location" placeholder="https://maps.app.goo.gl/... أو عنوان نصي" value="${q.location}" style="flex:1">
+            <button class="btn sm" id="f_useMyLocation" type="button" title="استخدام موقعي الحالي">📍 موقعي الحالي</button>
+          </div>
+          <div class="hint">افتح الموقع في خرائط جوجل، اضغط "مشاركة"، ثم انسخ الرابط والصقه هنا — أو اكتب العنوان نصاً</div>
+        </div>
       </div>
       <label class="chk" style="font-weight:700">
         <input type="checkbox" id="f_showHeader" ${q.showCompanyHeader !== false ? "checked" : ""}>
@@ -418,6 +425,20 @@ function bindQuoteBuilderEvents(el) {
       else if (id === "f_location") q.location = input.value;
     };
   });
+  document.getElementById("f_useMyLocation").onclick = () => {
+    if (!navigator.geolocation) { toast("المتصفح لا يدعم تحديد الموقع"); return; }
+    toast("جارٍ تحديد الموقع...");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const link = `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
+        q.location = link;
+        document.getElementById("f_location").value = link;
+        toast("تم تحديد الموقع الحالي");
+      },
+      () => toast("تعذّر تحديد الموقع — تأكد من السماح بالوصول للموقع الجغرافي"),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
   document.getElementById("f_showHeader").onchange = (e) => { q.showCompanyHeader = e.target.checked; };
   document.getElementById("f_noteValidity").oninput = (e) => { q.noteValidity = e.target.value; };
   document.getElementById("f_notePayment").oninput = (e) => { q.notePayment = e.target.value; };
@@ -627,7 +648,7 @@ function renderQuoteView(el) {
         <div>
           <h3 class="mt-0">بيانات المشروع</h3>
           <div class="kv-row"><span class="k">اسم المشروع</span><span class="v">${q.projectName}</span></div>
-          <div class="kv-row"><span class="k">الموقع</span><span class="v">${q.location}</span></div>
+          <div class="kv-row"><span class="k">الموقع</span><span class="v">${locationDisplay(q.location)}</span></div>
         </div>
       </div>
     </div>

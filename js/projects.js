@@ -53,7 +53,7 @@ function renderProjectsList(el) {
         <div class="contract-row-icon">🏗️</div>
         <div class="contract-row-info">
           <div class="contract-row-title">${p.name}</div>
-          <div class="contract-row-sub">${p.client || "بدون عميل"} · ${projectTypeLabel(p.projectType)} · ${p.location || "-"} · ${statusBadge2(p.status)} ${delayedBadgeHtml(p)}</div>
+          <div class="contract-row-sub">${p.client || "بدون عميل"} · ${projectTypeLabel(p.projectType)} · ${locationDisplay(p.location)} · ${statusBadge2(p.status)} ${delayedBadgeHtml(p)}</div>
         </div>
         <div style="min-width:110px">
           <div class="progress-track"><div class="progress-fill ${p.completion >= 80 ? "success" : p.completion < 40 ? "warning" : ""}" style="width:${p.completion || 0}%"></div></div>
@@ -267,7 +267,14 @@ function renderProjectBuilder(el) {
       <h3>بيانات أساسية</h3>
       <div class="grid cols-2">
         <div class="field"><label>اسم المشروع</label><input id="p_name" value="${d.name}"></div>
-        <div class="field"><label>موقع المشروع</label><input id="p_location" value="${d.location}"></div>
+      </div>
+      <div class="field">
+        <label>موقع المشروع (رابط خرائط جوجل)</label>
+        <div class="flex gap">
+          <input id="p_location" placeholder="https://maps.app.goo.gl/... أو عنوان نصي" value="${d.location}" style="flex:1">
+          <button class="btn sm" id="p_useMyLocation" type="button" title="استخدام موقعي الحالي">📍 موقعي الحالي</button>
+        </div>
+        <div class="hint">افتح الموقع في خرائط جوجل، اضغط "مشاركة"، ثم انسخ الرابط والصقه هنا — أو اكتب العنوان نصاً</div>
       </div>
       <div class="field"><label>نوع المشروع</label>
         <div class="pill-group">${CONTRACT_TYPES.map(t => `<div class="pill ${d.projectType === t.key ? "active" : ""}" data-ptype="${t.key}">${projectTypeLabel(t.key)}</div>`).join("")}</div>
@@ -335,6 +342,20 @@ function renderProjectBuilder(el) {
 
   document.getElementById("p_name").oninput = (e) => d.name = e.target.value;
   document.getElementById("p_location").oninput = (e) => d.location = e.target.value;
+  document.getElementById("p_useMyLocation").onclick = () => {
+    if (!navigator.geolocation) { toast("المتصفح لا يدعم تحديد الموقع"); return; }
+    toast("جارٍ تحديد الموقع...");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const link = `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
+        d.location = link;
+        document.getElementById("p_location").value = link;
+        toast("تم تحديد الموقع الحالي");
+      },
+      () => toast("تعذّر تحديد الموقع — تأكد من السماح بالوصول للموقع الجغرافي"),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
   document.getElementById("p_start").oninput = (e) => d.startDate = e.target.value;
   document.getElementById("p_end").oninput = (e) => d.endDate = e.target.value;
   document.getElementById("p_status").onchange = (e) => d.status = e.target.value;
@@ -424,7 +445,14 @@ function renderProjectDetail(el) {
 
       <div class="card">
         <h3>تفاصيل المشروع</h3>
-        <div class="field"><label>الموقع</label><input id="pd_location" value="${p.location || ""}"></div>
+        <div class="field">
+          <label>الموقع (رابط خرائط جوجل)</label>
+          <div class="flex gap">
+            <input id="pd_location" placeholder="https://maps.app.goo.gl/... أو عنوان نصي" value="${p.location || ""}" style="flex:1">
+            <button class="btn sm" id="pd_useMyLocation" type="button" title="استخدام موقعي الحالي">📍 موقعي الحالي</button>
+          </div>
+          <div id="pd_locationLink" style="margin-top:6px">${p.location ? locationDisplay(p.location) : ""}</div>
+        </div>
         <div class="grid cols-2">
           <div class="field"><label>تاريخ البدء</label><input type="date" id="pd_start" value="${p.startDate || ""}"></div>
           <div class="field"><label>تاريخ الانتهاء المتوقع</label><input type="date" id="pd_end" value="${p.endDate || ""}"></div>
@@ -529,7 +557,27 @@ function renderProjectDetail(el) {
   document.getElementById("pd_name").onchange = (e) => { p.name = e.target.value.trim() || p.name; persist(); };
   el.querySelectorAll("[data-ptype]").forEach(pill => pill.onclick = () => { p.projectType = pill.dataset.ptype; persist(); renderProjectDetail(el); });
   document.getElementById("pd_status").onchange = (e) => { p.status = e.target.value; persist(); };
-  document.getElementById("pd_location").onchange = (e) => { p.location = e.target.value.trim(); persist(); };
+  document.getElementById("pd_location").onchange = (e) => {
+    p.location = e.target.value.trim();
+    persist();
+    document.getElementById("pd_locationLink").innerHTML = p.location ? locationDisplay(p.location) : "";
+  };
+  document.getElementById("pd_useMyLocation").onclick = () => {
+    if (!navigator.geolocation) { toast("المتصفح لا يدعم تحديد الموقع"); return; }
+    toast("جارٍ تحديد الموقع...");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const link = `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
+        p.location = link;
+        document.getElementById("pd_location").value = link;
+        document.getElementById("pd_locationLink").innerHTML = locationDisplay(link);
+        persist();
+        toast("تم تحديد الموقع الحالي");
+      },
+      () => toast("تعذّر تحديد الموقع — تأكد من السماح بالوصول للموقع الجغرافي"),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
   document.getElementById("pd_start").onchange = (e) => { p.startDate = e.target.value; persist(); };
   document.getElementById("pd_end").onchange = (e) => { p.endDate = e.target.value; persist(); };
   document.getElementById("pd_completion").oninput = (e) => {
