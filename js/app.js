@@ -64,7 +64,7 @@ function renderLogin() {
   document.getElementById("root").innerHTML = `
     <div class="login-wrap">
       <div class="login-card">
-        <div class="login-logo">ن ن</div>
+        <div class="login-logo"><img src="logo.png" alt="نهوض نجد للمقاولات"></div>
         <h1>نهوض نجد للمقاولات</h1>
         <p class="sub">نظام إدارة المشاريع والمقاولات</p>
         <div class="field" style="text-align:right">
@@ -97,7 +97,7 @@ function renderApp() {
       <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
       <aside class="sidebar" id="sidebarAside">
         <div class="sidebar-brand">
-          <div class="logo">ن ن</div>
+          <div class="logo"><img src="logo.png" alt="نهوض نجد للمقاولات"></div>
           <div class="name">نهوض نجد للمقاولات<small>نظام إدارة المشاريع</small></div>
         </div>
         <nav class="sidebar-nav" id="sidebarNav"></nav>
