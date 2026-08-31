@@ -39,12 +39,15 @@ function renderVisits(el) {
   el.querySelectorAll("[data-open]").forEach(b => b.onclick = () => { VISIT_MODAL = { id: b.dataset.open }; openVisitModal(); });
 }
 
+const WHATSAPP_SVG = `<svg viewBox="0 0 32 32" width="15" height="15" fill="#fff"><path d="M16.004 3C9.096 3 3.5 8.596 3.5 15.504c0 2.386.663 4.62 1.813 6.527L3 29l7.146-2.26a12.44 12.44 0 0 0 5.858 1.49h.005c6.908 0 12.503-5.596 12.503-12.504C28.512 8.818 22.914 3.223 16.004 3zm7.29 17.774c-.31.874-1.542 1.6-2.522 1.81-.673.14-1.55.253-4.505-.967-3.782-1.566-6.216-5.406-6.406-5.658-.183-.252-1.53-2.037-1.53-3.885 0-1.848.966-2.756 1.31-3.132.343-.376.75-.47 1-.47.25 0 .5.002.717.013.23.012.539-.087.842.643.31.75 1.056 2.598 1.148 2.786.093.19.155.412.031.664-.124.252-.187.408-.372.628-.187.22-.393.49-.562.658-.187.187-.382.39-.164.766.218.376.968 1.598 2.078 2.588 1.428 1.274 2.632 1.669 3.008 1.856.376.187.596.156.816-.094.22-.25.937-1.093 1.187-1.469.25-.376.5-.313.842-.188.343.125 2.178 1.028 2.552 1.215.375.188.624.281.717.438.093.156.093.906-.218 1.78z"/></svg>`;
+const CALL_SVG = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+
 function contactIconsHtml(phone) {
   if (!phone) return "";
   const digits = phone.replace(/[^\d+]/g, "");
   let waNumber = digits.replace(/^\+/, "");
   if (waNumber.startsWith("0")) waNumber = "966" + waNumber.slice(1);
-  return `<a href="https://wa.me/${waNumber}" target="_blank" rel="noopener" class="icon-btn wa" title="تواصل عبر واتساب">💬</a><a href="tel:${digits}" class="icon-btn call" title="اتصال">📞</a>`;
+  return `<a href="https://wa.me/${waNumber}" target="_blank" rel="noopener" class="icon-btn wa" title="تواصل عبر واتساب">${WHATSAPP_SVG}</a><a href="tel:${digits}" class="icon-btn call" title="اتصال">${CALL_SVG}</a>`;
 }
 
 function locationDisplay(loc) {
