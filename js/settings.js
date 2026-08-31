@@ -2,8 +2,9 @@
    صفحة الإعدادات
    ========================================================= */
 
-let SETTINGS_TAB = "users"; // users | permissions | catalog | company | activity
+let SETTINGS_TAB = "users"; // users | permissions | catalog | expenseCatalog | company | activity
 let ACTIVITY_LOG_SEARCH = "";
+let EXPENSE_CAT_COLLAPSED = {};
 
 function renderSettings(el) {
   el.innerHTML = `
@@ -12,8 +13,9 @@ function renderSettings(el) {
       <div class="tab-btn ${SETTINGS_TAB === "users" ? "active" : ""}" data-tab="users">١. التحكم بالمستخدمين</div>
       <div class="tab-btn ${SETTINGS_TAB === "permissions" ? "active" : ""}" data-tab="permissions">٢. الصلاحيات</div>
       <div class="tab-btn ${SETTINGS_TAB === "catalog" ? "active" : ""}" data-tab="catalog">٣. بنود عروض الأسعار</div>
-      <div class="tab-btn ${SETTINGS_TAB === "company" ? "active" : ""}" data-tab="company">٤. بيانات المؤسسة والشعار</div>
-      <div class="tab-btn ${SETTINGS_TAB === "activity" ? "active" : ""}" data-tab="activity">٥. سجل العمليات</div>
+      <div class="tab-btn ${SETTINGS_TAB === "expenseCatalog" ? "active" : ""}" data-tab="expenseCatalog">٤. العهد والمصروفات</div>
+      <div class="tab-btn ${SETTINGS_TAB === "company" ? "active" : ""}" data-tab="company">٥. بيانات المؤسسة والشعار</div>
+      <div class="tab-btn ${SETTINGS_TAB === "activity" ? "active" : ""}" data-tab="activity">٦. سجل العمليات</div>
     </div>
     <div id="settingsBody"></div>
   `;
@@ -23,8 +25,122 @@ function renderSettings(el) {
   if (SETTINGS_TAB === "users") renderUsersTab(body);
   else if (SETTINGS_TAB === "permissions") renderPermissionsTab(body);
   else if (SETTINGS_TAB === "catalog") renderCatalogTab(body);
+  else if (SETTINGS_TAB === "expenseCatalog") renderExpenseCatalogSettingsTab(body);
   else if (SETTINGS_TAB === "activity") renderActivityLogTab(body);
   else renderCompanyTab(body);
+}
+
+/* ---------- تبويب العهد والمصروفات ---------- */
+function renderExpenseCatalogSettingsTab(el) {
+  const catalog = getExpenseCatalog();
+  el.innerHTML = `
+    <div class="card">
+      <div class="flex between"><h3 class="mt-0">العهد والمصروفات</h3>
+        <button class="btn sm primary" id="addExpCatBtn">+ إضافة بند رئيسي</button>
+      </div>
+      <p class="text-muted" style="font-size:12.5px;margin-top:-6px">إدارة مسميات المصاريف الإدارية الرئيسية (مثل رواتب، مواد، إيجار) وبنودها الفرعية — تُستخدم هذه القائمة تلقائياً عند تسجيل مصروف إداري جديد</p>
+      ${catalog.map(cat => `
+        <div class="cat-block" data-catid="${cat.id}">
+          <div class="cat-head">
+            <div class="flex" style="align-items:center;gap:8px">
+              <button class="btn sm" data-toggleexpcat="${cat.id}" style="padding:4px 9px">${EXPENSE_CAT_COLLAPSED[cat.id] ? "▸" : "▾"}</button>
+              <strong>${cat.name}</strong>
+              <span class="badge gray">${cat.items.length} بند فرعي</span>
+            </div>
+            <div class="flex" style="align-items:center;gap:6px">
+              <button class="btn sm" data-addexpitem="${cat.id}">+ إضافة بند فرعي</button>
+              <button class="btn sm" data-editexpcat="${cat.id}" title="تعديل الاسم">✏️</button>
+              <button class="btn sm danger" data-delexpcat="${cat.id}" title="حذف">🗑️</button>
+            </div>
+          </div>
+          ${!EXPENSE_CAT_COLLAPSED[cat.id] ? `
+            ${cat.items.length ? cat.items.map(it => `
+              <div class="exp-item-row">
+                <span>${it.name}</span>
+                <span class="flex" style="gap:6px">
+                  <button class="btn sm" data-editexpitem="${cat.id}:${it.id}" title="تعديل">✏️</button>
+                  <button class="btn sm danger" data-delexpitem="${cat.id}:${it.id}" title="حذف">🗑️</button>
+                </span>
+              </div>`).join("") : `<div class="text-muted" style="font-size:12px;padding:6px 4px">لا توجد بنود فرعية بعد</div>`}
+          ` : ""}
+        </div>
+      `).join("")}
+    </div>
+  `;
+
+  function saveCatalog(cat) { dbSet("expenseCatalog", cat); }
+
+  document.getElementById("addExpCatBtn").onclick = () => {
+    const name = (prompt("اسم البند الرئيسي الجديد:") || "").trim();
+    if (!name) return;
+    const cat = getExpenseCatalog();
+    cat.push({ id: uid("ecat"), name, items: [] });
+    saveCatalog(cat);
+    logActivity(`تم إضافة بند مصروفات رئيسي "${name}"`);
+    renderExpenseCatalogSettingsTab(el);
+  };
+
+  el.querySelectorAll("[data-toggleexpcat]").forEach(b => b.onclick = () => {
+    EXPENSE_CAT_COLLAPSED[b.dataset.toggleexpcat] = !EXPENSE_CAT_COLLAPSED[b.dataset.toggleexpcat];
+    renderExpenseCatalogSettingsTab(el);
+  });
+
+  el.querySelectorAll("[data-editexpcat]").forEach(b => b.onclick = () => {
+    const cat = getExpenseCatalog();
+    const c = cat.find(x => x.id === b.dataset.editexpcat);
+    const name = (prompt("تعديل اسم البند الرئيسي:", c.name) || "").trim();
+    if (!name || name === c.name) return;
+    const oldName = c.name;
+    c.name = name;
+    saveCatalog(cat);
+    logActivity(`تم تعديل اسم بند المصروفات "${oldName}" إلى: "${name}"`);
+    renderExpenseCatalogSettingsTab(el);
+  });
+
+  el.querySelectorAll("[data-delexpcat]").forEach(b => b.onclick = () => {
+    const cat = getExpenseCatalog();
+    const c = cat.find(x => x.id === b.dataset.delexpcat);
+    if (!confirm(`حذف بند "${c.name}" الرئيسي وكل بنوده الفرعية؟`)) return;
+    saveCatalog(cat.filter(x => x.id !== b.dataset.delexpcat));
+    logActivity(`تم حذف بند مصروفات رئيسي "${c.name}"`);
+    renderExpenseCatalogSettingsTab(el);
+  });
+
+  el.querySelectorAll("[data-addexpitem]").forEach(b => b.onclick = () => {
+    const name = (prompt("اسم البند الفرعي الجديد:") || "").trim();
+    if (!name) return;
+    const cat = getExpenseCatalog();
+    const c = cat.find(x => x.id === b.dataset.addexpitem);
+    c.items.push({ id: uid("eit"), name });
+    saveCatalog(cat);
+    logActivity(`تم إضافة بند فرعي "${name}" إلى "${c.name}"`);
+    renderExpenseCatalogSettingsTab(el);
+  });
+
+  el.querySelectorAll("[data-editexpitem]").forEach(b => b.onclick = () => {
+    const [catId, itemId] = b.dataset.editexpitem.split(":");
+    const cat = getExpenseCatalog();
+    const c = cat.find(x => x.id === catId);
+    const it = c.items.find(x => x.id === itemId);
+    const name = (prompt("تعديل اسم البند الفرعي:", it.name) || "").trim();
+    if (!name || name === it.name) return;
+    it.name = name;
+    saveCatalog(cat);
+    logActivity(`تم تعديل بند فرعي في "${c.name}" إلى: "${name}"`);
+    renderExpenseCatalogSettingsTab(el);
+  });
+
+  el.querySelectorAll("[data-delexpitem]").forEach(b => b.onclick = () => {
+    const [catId, itemId] = b.dataset.delexpitem.split(":");
+    const cat = getExpenseCatalog();
+    const c = cat.find(x => x.id === catId);
+    const it = c.items.find(x => x.id === itemId);
+    if (!confirm(`حذف البند الفرعي "${it.name}"؟`)) return;
+    c.items = c.items.filter(x => x.id !== itemId);
+    saveCatalog(cat);
+    logActivity(`تم حذف بند فرعي "${it.name}" من "${c.name}"`);
+    renderExpenseCatalogSettingsTab(el);
+  });
 }
 
 /* ---------- تبويب سجل العمليات ---------- */

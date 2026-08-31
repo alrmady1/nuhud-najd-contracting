@@ -10,7 +10,30 @@ const ACC_TYPE_BADGE = {
   "إيراد مشروع": "green", "فاتورة ضريبية": "green",
   "دفعة مشتريات": "blue", "مصروف مواد": "orange", "مصروف عمال": "orange", "مصروف نثرية": "gray",
 };
-const GENERAL_CATS = ["رواتب", "إقامات", "إيجار المكتب", "كهرباء", "مركبات"];
+/* ---------- قائمة المصاريف والعهد (تصنيفات المصاريف الإدارية وبنودها الفرعية) ---------- */
+function defaultExpenseCatalog() {
+  const mk = (name, itemNames) => ({ id: uid("ecat"), name, items: (itemNames || []).map(n => ({ id: uid("eit"), name: n })) });
+  return [
+    mk("مواد", ["إسمنت", "بلوك", "حديد", "رمل", "كهربائيات", "صبغة", "أخرى"]),
+    mk("رواتب", []),
+    mk("مصاريف عهدة", []),
+    mk("مواد التشغيل والنظافة", []),
+    mk("إقامات", ["أجور طبي", "رسوم تجديد", "رسوم نقل كفالة", "رسوم مكتب عمل", "تحويل مهنة"]),
+    mk("إيجار", []),
+    mk("كهرباء", []),
+    mk("غاز", []),
+    mk("مشتريات متفرقة", []),
+  ];
+}
+function getExpenseCatalog() {
+  let cat = dbGet("expenseCatalog", null);
+  if (!cat) { cat = defaultExpenseCatalog(); dbSet("expenseCatalog", cat); }
+  return cat;
+}
+function getExpenseCategoryNames() {
+  return getExpenseCatalog().map(c => c.name);
+}
+const GENERAL_CATS = ["رواتب", "إقامات", "إيجار المكتب", "كهرباء", "مركبات"]; // احتياطي (Deprecated) — القائمة الفعلية الآن من getExpenseCategoryNames()
 
 /* ================= محاسبة المشاريع ================= */
 function renderAccProjects(el) {
@@ -201,18 +224,33 @@ function renderAccGeneral(el) {
   else renderGeneralExpensesTab(body);
 }
 
+function generalExpenseSubtitle(e) {
+  if (e.category === "رواتب" && e.employeeName) {
+    return `${e.employeeName}${e.salaryMonth ? " — راتب شهر " + salaryMonthLabel(e.salaryMonth) : ""}`;
+  }
+  return e.subItem || "";
+}
+
+function salaryMonthLabel(ym) {
+  if (!ym) return "";
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(y, m - 1, 1);
+  return d.toLocaleDateString("ar-SA-u-ca-gregory", { year: "numeric", month: "long" });
+}
+
 function renderGeneralExpensesTab(el) {
   const list = dbGet("accGeneral", []).slice().sort((a, b) => (b.date > a.date ? 1 : -1));
   const total = list.reduce((s, e) => s + Number(e.amount || 0), 0);
+  const catNames = getExpenseCategoryNames();
   const byCat = {};
-  GENERAL_CATS.forEach(c => byCat[c] = 0);
+  catNames.forEach(c => byCat[c] = 0);
   list.forEach(e => byCat[e.category] = (byCat[e.category] || 0) + Number(e.amount || 0));
 
   el.innerHTML = `
     <div class="flex between" style="margin-bottom:14px"><div></div><button class="btn primary" id="addGeneralBtn">+ إضافة مصروف</button></div>
 
     <div class="grid cols-4" style="margin-bottom:18px">
-      ${GENERAL_CATS.map(c => `<div class="stat-card"><div class="label">${c}</div><div class="value">${fmtMoney(byCat[c])}</div></div>`).join("")}
+      ${catNames.map(c => `<div class="stat-card"><div class="label">${c}</div><div class="value">${fmtMoney(byCat[c])}</div></div>`).join("")}
     </div>
     <div class="stat-card" style="margin-bottom:18px;max-width:320px"><div class="label">إجمالي المصاريف الإدارية</div><div class="value danger">${fmtMoney(total)}</div></div>
 
@@ -221,11 +259,12 @@ function renderGeneralExpensesTab(el) {
       ${list.length ? `
       <div class="table-wrap">
         <table class="data-table">
-          <thead><tr><th>التصنيف</th><th>المبلغ</th><th>التاريخ</th><th>ملاحظات</th><th></th></tr></thead>
+          <thead><tr><th>التصنيف</th><th>التفاصيل</th><th>المبلغ</th><th>التاريخ</th><th>ملاحظات</th><th></th></tr></thead>
           <tbody>
             ${list.map(e => `
               <tr>
                 <td><span class="badge gray">${e.category}</span></td>
+                <td class="text-muted">${generalExpenseSubtitle(e) || "-"}</td>
                 <td><strong>${fmtMoney(e.amount)}</strong></td>
                 <td>${fmtDate(e.date)}</td>
                 <td class="text-muted">${e.note || "-"}</td>
@@ -432,12 +471,16 @@ function openAddCustodyTxnModal(custodyId, type, el) {
 }
 
 function openGeneralExpenseModal(el) {
+  const catalog = getExpenseCatalog();
+  const catNames = catalog.map(c => c.name);
+  const users = dbGet("users", []);
   const html = `
     <div class="modal-head"><h3>إضافة مصروف إداري</h3><button class="modal-close" id="mClose">×</button></div>
-    <div class="field"><label>التصنيف</label><select id="g_cat">${GENERAL_CATS.map(c => `<option value="${c}">${c}</option>`).join("")}</select></div>
+    <div class="field"><label>التصنيف</label><select id="g_cat">${catNames.map(c => `<option value="${c}">${c}</option>`).join("")}</select></div>
+    <div id="g_extraFields"></div>
     <div class="grid cols-2">
       <div class="field"><label>المبلغ (ر.س)</label><input type="number" min="0" step="0.01" id="g_amount"></div>
-      <div class="field"><label>التاريخ</label><input type="date" id="g_date" value="${todayISO()}"></div>
+      <div class="field"><label id="g_dateLabel">التاريخ</label><input type="date" id="g_date" value="${todayISO()}"></div>
     </div>
     <div class="field"><label><input type="checkbox" id="g_vat" style="width:auto;display:inline-block"> يشمل فاتورة ضريبية (ضريبة قيمة مضافة قابلة للخصم)</label></div>
     <div class="field"><label>ملاحظات</label><textarea id="g_note"></textarea></div>
@@ -446,18 +489,70 @@ function openGeneralExpenseModal(el) {
   const ov = openModalShell(html);
   ov.querySelector("#mClose").onclick = closeModal;
   ov.querySelector("#g_cancel").onclick = closeModal;
+
+  const catSelect = ov.querySelector("#g_cat");
+  const extraBox = ov.querySelector("#g_extraFields");
+  const dateLabel = ov.querySelector("#g_dateLabel");
+
+  function renderExtraFields() {
+    const catName = catSelect.value;
+    if (catName === "رواتب") {
+      dateLabel.textContent = "تاريخ تسليم الراتب";
+      extraBox.innerHTML = `
+        <div class="grid cols-2">
+          <div class="field"><label>الموظف</label>
+            <select id="g_employee">
+              <option value="">— اختر الموظف —</option>
+              ${users.map(u => `<option value="${u.id}">${u.name} — ${u.role}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field"><label>الشهر المستحق عنه الراتب</label><input type="month" id="g_salaryMonth" value="${todayISO().slice(0, 7)}"></div>
+        </div>
+      `;
+    } else {
+      dateLabel.textContent = "التاريخ";
+      const cat = catalog.find(c => c.name === catName);
+      const items = cat ? cat.items : [];
+      extraBox.innerHTML = items.length ? `
+        <div class="field"><label>البند الفرعي (اختياري)</label>
+          <select id="g_subItem">
+            <option value="">— بدون تحديد —</option>
+            ${items.map(it => `<option value="${it.name}">${it.name}</option>`).join("")}
+          </select>
+        </div>
+      ` : "";
+    }
+  }
+  renderExtraFields();
+  catSelect.onchange = renderExtraFields;
+
   ov.querySelector("#g_save").onclick = () => {
     const amount = Number(ov.querySelector("#g_amount").value) || 0;
     if (amount <= 0) { toast("يرجى إدخال مبلغ صحيح"); return; }
     const vatApplicable = ov.querySelector("#g_vat").checked;
+    const category = catSelect.value;
     const list = dbGet("accGeneral", []);
-    list.push({
-      id: uid("ge"), category: ov.querySelector("#g_cat").value, amount,
+    const entry = {
+      id: uid("ge"), category, amount,
       vatApplicable, vatAmount: vatApplicable ? amount * VAT_RATE : 0,
       date: ov.querySelector("#g_date").value || todayISO(), note: ov.querySelector("#g_note").value.trim(),
-    });
+    };
+    let logSuffix = "";
+    if (category === "رواتب") {
+      const empSelect = ov.querySelector("#g_employee");
+      const emp = users.find(u => u.id === (empSelect ? empSelect.value : ""));
+      if (!emp) { toast("يرجى اختيار الموظف"); return; }
+      entry.employeeId = emp.id;
+      entry.employeeName = emp.name;
+      entry.salaryMonth = ov.querySelector("#g_salaryMonth").value;
+      logSuffix = ` للموظف "${emp.name}"${entry.salaryMonth ? " عن شهر " + salaryMonthLabel(entry.salaryMonth) : ""}`;
+    } else {
+      const subSelect = ov.querySelector("#g_subItem");
+      if (subSelect && subSelect.value) { entry.subItem = subSelect.value; logSuffix = ` (${subSelect.value})`; }
+    }
+    list.push(entry);
     dbSet("accGeneral", list);
-    logActivity(`تم تسجيل مصروف إداري "${ov.querySelector("#g_cat").value}" بقيمة ${fmtMoney(amount)}`);
+    logActivity(`تم تسجيل مصروف إداري "${category}"${logSuffix} بقيمة ${fmtMoney(amount)}`);
     toast("تم إضافة المصروف الإداري");
     closeModal();
     renderGeneralExpensesTab(el);
