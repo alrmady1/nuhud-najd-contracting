@@ -6,11 +6,11 @@ let SETTINGS_TAB = "users"; // users | catalog | company
 
 function renderSettings(el) {
   el.innerHTML = `
-    <div class="section-title-row"><div><h2>الإعدادات</h2><p>إدارة المستخدمين والصلاحيات وبنود عروض الأسعار وبيانات الشركة</p></div></div>
+    <div class="section-title-row"><div><h2>الإعدادات</h2><p>إدارة المستخدمين والصلاحيات وبنود عروض الأسعار وبيانات المؤسسة</p></div></div>
     <div class="tabs">
       <div class="tab-btn ${SETTINGS_TAB === "users" ? "active" : ""}" data-tab="users">١. التحكم بالمستخدمين</div>
       <div class="tab-btn ${SETTINGS_TAB === "catalog" ? "active" : ""}" data-tab="catalog">٢. بنود عروض الأسعار</div>
-      <div class="tab-btn ${SETTINGS_TAB === "company" ? "active" : ""}" data-tab="company">٣. بيانات الشركة والشعار</div>
+      <div class="tab-btn ${SETTINGS_TAB === "company" ? "active" : ""}" data-tab="company">٣. بيانات المؤسسة والشعار</div>
     </div>
     <div id="settingsBody"></div>
   `;
@@ -22,24 +22,24 @@ function renderSettings(el) {
   else renderCompanyTab(body);
 }
 
-/* ---------- تبويب بيانات الشركة ---------- */
+/* ---------- تبويب بيانات المؤسسة ---------- */
 function renderCompanyTab(el) {
   const profile = getCompanyProfile();
   const users = dbGet("users", []);
   el.innerHTML = `
     <div class="card">
-      <h3>بيانات الشركة وشعارها</h3>
+      <h3>بيانات المؤسسة وشعارها</h3>
       <p class="text-muted" style="font-size:12.5px;margin-top:-6px">تظهر هذه البيانات في ترويسة عرض السعر النهائي المرسل للعميل (يمكن إظهارها أو إخفاؤها لكل عرض سعر على حدة عند إنشائه).</p>
 
       <div class="company-logo-preview" id="logoPreview">${profile.logo ? `<img src="${profile.logo}">` : "الشعار"}</div>
       <div class="field" style="max-width:340px">
-        <label>رفع شعار الشركة (صورة)</label>
+        <label>رفع شعار المؤسسة (صورة)</label>
         <input type="file" id="cp_logo" accept="image/*">
         ${profile.logo ? `<button type="button" class="btn sm danger" id="cp_removeLogo" style="margin-top:8px">إزالة الشعار</button>` : ""}
       </div>
 
       <div class="grid cols-2">
-        <div class="field" style="grid-column:span 2"><label>اسم الشركة</label><input id="cp_name" value="${profile.name || ""}"></div>
+        <div class="field" style="grid-column:span 2"><label>اسم المؤسسة</label><input id="cp_name" value="${profile.name || ""}"></div>
         <div class="field"><label>رقم الجوال</label><input id="cp_phone" value="${profile.phone || ""}"></div>
         <div class="field"><label>البريد الإلكتروني</label><input id="cp_email" value="${profile.email || ""}"></div>
         <div class="field"><label>الرقم الضريبي</label><input id="cp_tax" value="${profile.taxNumber || ""}"></div>
@@ -54,7 +54,7 @@ function renderCompanyTab(el) {
           <div class="hint">يُختار من المستخدمين المسجلين في صفحة الإعدادات ← التحكم بالمستخدمين</div>
         </div>
       </div>
-      <button class="btn primary" id="cp_save">💾 حفظ بيانات الشركة</button>
+      <button class="btn primary" id="cp_save">💾 حفظ بيانات المؤسسة</button>
     </div>
   `;
 
@@ -84,7 +84,7 @@ function renderCompanyTab(el) {
       contactUserId: document.getElementById("cp_contact").value,
       logo: pendingLogo,
     });
-    toast("تم حفظ بيانات الشركة");
+    toast("تم حفظ بيانات المؤسسة");
     renderSettings(el.parentElement);
   };
 }

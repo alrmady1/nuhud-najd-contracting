@@ -242,7 +242,7 @@ function setCurrentUser(u) {
   dbSet("currentUser", u);
 }
 
-/* ---------- بيانات الشركة (تظهر في ترويسة عرض السعر النهائي) ---------- */
+/* ---------- بيانات المؤسسة (تظهر في ترويسة عرض السعر النهائي) ---------- */
 function getCompanyProfile() {
   return dbGet("companyProfile", {
     name: "نهوض نجد للمقاولات",

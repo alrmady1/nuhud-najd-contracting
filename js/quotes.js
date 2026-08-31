@@ -313,7 +313,7 @@ function renderQuoteBuilder(el) {
       </div>
       <label class="chk" style="font-weight:700">
         <input type="checkbox" id="f_showHeader" ${q.showCompanyHeader !== false ? "checked" : ""}>
-        إظهار بيانات الشركة والشعار في ترويسة عرض السعر النهائي
+        إظهار بيانات المؤسسة والشعار في ترويسة عرض السعر النهائي
       </label>
     </div>
 

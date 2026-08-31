@@ -182,7 +182,7 @@ let ACC_GENERAL_TAB = "expenses"; // expenses | custody
 
 function renderAccGeneral(el) {
   el.innerHTML = `
-    <div class="section-title-row"><div><h2>المحاسبة العامة</h2><p>المصاريف الإدارية العامة للشركة وعُهد الموظفين</p></div></div>
+    <div class="section-title-row"><div><h2>المحاسبة العامة</h2><p>المصاريف الإدارية العامة للمؤسسة وعُهد الموظفين</p></div></div>
     <div class="tabs">
       <div class="tab-btn ${ACC_GENERAL_TAB === "expenses" ? "active" : ""}" data-gtab="expenses">المصاريف الإدارية</div>
       <div class="tab-btn ${ACC_GENERAL_TAB === "custody" ? "active" : ""}" data-gtab="custody">العهد</div>

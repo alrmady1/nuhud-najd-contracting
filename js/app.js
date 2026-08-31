@@ -377,5 +377,6 @@ window.addEventListener("DOMContentLoaded", () => {
   migrateProfitMargin();
   migrateProjectsSchema();
   migrateClientTypes();
+  checkProjectDeadlineNotifications();
   renderApp();
 });

@@ -45,7 +45,7 @@ function renderProjectsList(el) {
   const projects = dbGet("projects", []).slice().sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
   el.innerHTML = `
     <div class="section-title-row">
-      <div><h2>المشاريع</h2><p>إدارة مشاريع الشركة وربطها بالعملاء والعقود وجداول الكميات المعتمدة</p></div>
+      <div><h2>المشاريع</h2><p>إدارة مشاريع المؤسسة وربطها بالعملاء والعقود وجداول الكميات المعتمدة</p></div>
       <button class="btn primary" id="newProjectBtn"><span style="font-size:15px">➕</span> إضافة مشروع</button>
     </div>
     ${projects.length ? projects.map(p => `
@@ -101,15 +101,39 @@ function statusBadge2(status) {
   return `<span class="badge ${map[status] || "gray"}">${status || "قيد التنفيذ"}</span>`;
 }
 
+const UPCOMING_DEADLINE_DAYS = 20; // يُنبَّه قبل الموعد بهذا العدد من الأيام
+
+// تاريخ الانتهاء الفعلي للمشروع: يُفضَّل تاريخ انتهاء العقد المرتبط (بداية العقد + مدة التنفيذ
+// بالأيام) إن وُجد، وإلا يُستخدم تاريخ الانتهاء المُدخل يدوياً في المشروع نفسه.
+function projectEffectiveEndDate(p) {
+  if (p && p.contractId) {
+    const contract = dbGet("contracts", []).find(c => c.id === p.contractId);
+    if (contract) {
+      const end = contract.endDate || (typeof contractEndDate === "function" ? contractEndDate(contract) : "");
+      if (end) return end;
+    }
+  }
+  return (p && p.endDate) || "";
+}
+
+function projectDaysRemaining(p) {
+  const end = projectEffectiveEndDate(p);
+  if (!end) return null;
+  if (p.status === "مكتمل" || (p.completion || 0) >= 100) return null;
+  return Math.round((new Date(end) - new Date(todayISO())) / 86400000);
+}
+
 function isProjectDelayed(p) {
-  if (!p || !p.endDate) return false;
-  if (p.status === "مكتمل") return false;
-  if ((p.completion || 0) >= 100) return false;
-  return p.endDate < todayISO();
+  const days = projectDaysRemaining(p);
+  return days !== null && days < 0;
 }
 
 function delayedBadgeHtml(p) {
-  return isProjectDelayed(p) ? `<span class="badge red">⚠️ متأخر عن الموعد المحدد</span>` : "";
+  const days = projectDaysRemaining(p);
+  if (days === null) return "";
+  if (days < 0) return `<span class="badge red">⚠️ متأخر عن الموعد المحدد (${Math.abs(days)} يوم)</span>`;
+  if (days <= UPCOMING_DEADLINE_DAYS) return `<span class="badge orange">⏰ تبقى ${days} يوم على الموعد المحدد</span>`;
+  return "";
 }
 
 /* ---------- منتقي العميل (نسخة خاصة بالمشاريع) ---------- */
@@ -538,6 +562,31 @@ function renderProjectDetail(el) {
 
   document.getElementById("openProjectAcc").onclick = () => { ACC_SELECTED_PROJECT = p.id; location.hash = "#/acc_projects"; };
   document.getElementById("openProjectCustody").onclick = () => { ACC_GENERAL_TAB = "custody"; location.hash = "#/acc_general"; };
+}
+
+/* تنبيه تلقائي عند اقتراب موعد انتهاء مشروع (يُرسل مرة واحدة فقط لكل مشروع حتى لا يتكرر) */
+function checkProjectDeadlineNotifications() {
+  const projects = dbGet("projects", []);
+  let changed = false;
+  projects.forEach(p => {
+    const days = projectDaysRemaining(p);
+    const inWarningWindow = days !== null && days >= 0 && days <= UPCOMING_DEADLINE_DAYS;
+    if (inWarningWindow && !p.deadlineWarningNotified) {
+      addNotification({
+        type: "project_deadline",
+        title: "اقتراب موعد انتهاء مشروع",
+        message: `تبقى ${days} يوم على الموعد المحدد لمشروع "${p.name}" حسب العقد المرتبط به.`,
+        targetRoles: ["مدير عام", "مدير النظام"],
+        relatedRoute: "projects",
+      });
+      p.deadlineWarningNotified = true;
+      changed = true;
+    } else if (!inWarningWindow && p.deadlineWarningNotified) {
+      p.deadlineWarningNotified = false; // أُعيد الضبط بعد تغيّر الموعد لاحقاً
+      changed = true;
+    }
+  });
+  if (changed) dbSet("projects", projects);
 }
 
 /* ترحيل بسيط: يضيف الحقول الجديدة لمشاريع مزروعة مسبقاً بدون كسر أي بيانات موجودة */

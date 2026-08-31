@@ -34,7 +34,7 @@ function renderClientsList(el) {
 
   el.innerHTML = `
     <div class="section-title-row">
-      <div><h2>العملاء</h2><p>سجل عملاء الشركة وبياناتهم</p></div>
+      <div><h2>العملاء</h2><p>سجل عملاء المؤسسة وبياناتهم</p></div>
       <button class="btn primary" id="newClientBtn">+ عميل جديد</button>
     </div>
 
