@@ -16,7 +16,6 @@ function defaultExpenseCatalog() {
   return [
     mk("مواد", ["إسمنت", "بلوك", "حديد", "رمل", "كهربائيات", "صبغة", "أخرى"]),
     mk("رواتب", []),
-    mk("مصاريف عهدة", []),
     mk("مواد التشغيل والنظافة", []),
     mk("إقامات", ["أجور طبي", "رسوم تجديد", "رسوم نقل كفالة", "رسوم مكتب عمل", "تحويل مهنة"]),
     mk("إيجار", []),
@@ -28,6 +27,9 @@ function defaultExpenseCatalog() {
 function getExpenseCatalog() {
   let cat = dbGet("expenseCatalog", null);
   if (!cat) { cat = defaultExpenseCatalog(); dbSet("expenseCatalog", cat); }
+  // العهد لها صفحتها المستقلة (تبويب "العهد") — لا يجوز إضافتها كتصنيف ضمن المصاريف الإدارية
+  const filtered = cat.filter(c => c.name !== "مصاريف عهدة");
+  if (filtered.length !== cat.length) { cat = filtered; dbSet("expenseCatalog", cat); }
   return cat;
 }
 function getExpenseCategoryNames() {
@@ -259,7 +261,7 @@ function renderGeneralExpensesTab(el) {
       ${list.length ? `
       <div class="table-wrap">
         <table class="data-table">
-          <thead><tr><th>التصنيف</th><th>التفاصيل</th><th>المبلغ</th><th>التاريخ</th><th>ملاحظات</th><th></th></tr></thead>
+          <thead><tr><th>التصنيف</th><th>التفاصيل</th><th>المبلغ</th><th>التاريخ</th><th>ملاحظات</th><th>المرفق</th><th></th></tr></thead>
           <tbody>
             ${list.map(e => `
               <tr>
@@ -268,6 +270,7 @@ function renderGeneralExpensesTab(el) {
                 <td><strong>${fmtMoney(e.amount)}</strong></td>
                 <td>${fmtDate(e.date)}</td>
                 <td class="text-muted">${e.note || "-"}</td>
+                <td>${e.attachment ? `<a href="${e.attachment.url}" target="_blank" rel="noopener" class="badge blue" style="text-decoration:none">📎 عرض المرفق</a>` : "-"}</td>
                 <td><button class="btn sm danger" data-delgen="${e.id}">حذف</button></td>
               </tr>`).join("")}
           </tbody>
@@ -484,11 +487,25 @@ function openGeneralExpenseModal(el) {
     </div>
     <div class="field"><label><input type="checkbox" id="g_vat" style="width:auto;display:inline-block"> يشمل فاتورة ضريبية (ضريبة قيمة مضافة قابلة للخصم)</label></div>
     <div class="field"><label>ملاحظات</label><textarea id="g_note"></textarea></div>
+    <div class="field">
+      <label>إرفاق ملف الفاتورة أو المستند (اختياري)</label>
+      <input type="file" id="g_attachment" accept=".pdf,image/*">
+      <div id="g_attachmentPreview" class="flex wrap" style="margin-top:8px"></div>
+    </div>
     <div class="flex gap"><button class="btn primary" id="g_save">حفظ</button><button class="btn" id="g_cancel">إلغاء</button></div>
   `;
   const ov = openModalShell(html);
   ov.querySelector("#mClose").onclick = closeModal;
   ov.querySelector("#g_cancel").onclick = closeModal;
+
+  let attachment = null;
+  ov.querySelector("#g_attachment").onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) { attachment = null; ov.querySelector("#g_attachmentPreview").innerHTML = ""; return; }
+    const url = await fileToDataURL(file);
+    attachment = { name: file.name, type: file.type, url };
+    ov.querySelector("#g_attachmentPreview").innerHTML = `<span class="file-chip">📎 ${file.name}</span>`;
+  };
 
   const catSelect = ov.querySelector("#g_cat");
   const extraBox = ov.querySelector("#g_extraFields");
@@ -536,6 +553,7 @@ function openGeneralExpenseModal(el) {
       id: uid("ge"), category, amount,
       vatApplicable, vatAmount: vatApplicable ? amount * VAT_RATE : 0,
       date: ov.querySelector("#g_date").value || todayISO(), note: ov.querySelector("#g_note").value.trim(),
+      attachment,
     };
     let logSuffix = "";
     if (category === "رواتب") {
