@@ -2,7 +2,8 @@
    صفحة الإعدادات
    ========================================================= */
 
-let SETTINGS_TAB = "users"; // users | permissions | catalog | company
+let SETTINGS_TAB = "users"; // users | permissions | catalog | company | activity
+let ACTIVITY_LOG_SEARCH = "";
 
 function renderSettings(el) {
   el.innerHTML = `
@@ -12,6 +13,7 @@ function renderSettings(el) {
       <div class="tab-btn ${SETTINGS_TAB === "permissions" ? "active" : ""}" data-tab="permissions">٢. الصلاحيات</div>
       <div class="tab-btn ${SETTINGS_TAB === "catalog" ? "active" : ""}" data-tab="catalog">٣. بنود عروض الأسعار</div>
       <div class="tab-btn ${SETTINGS_TAB === "company" ? "active" : ""}" data-tab="company">٤. بيانات المؤسسة والشعار</div>
+      <div class="tab-btn ${SETTINGS_TAB === "activity" ? "active" : ""}" data-tab="activity">٥. سجل العمليات</div>
     </div>
     <div id="settingsBody"></div>
   `;
@@ -21,7 +23,67 @@ function renderSettings(el) {
   if (SETTINGS_TAB === "users") renderUsersTab(body);
   else if (SETTINGS_TAB === "permissions") renderPermissionsTab(body);
   else if (SETTINGS_TAB === "catalog") renderCatalogTab(body);
+  else if (SETTINGS_TAB === "activity") renderActivityLogTab(body);
   else renderCompanyTab(body);
+}
+
+/* ---------- تبويب سجل العمليات ---------- */
+function activityLogTimeText(iso) {
+  const d = new Date(iso);
+  const datePart = d.toLocaleDateString("ar-SA-u-ca-gregory", { year: "numeric", month: "long", day: "numeric" });
+  const timePart = d.toLocaleTimeString("ar-SA-u-ca-gregory", { hour: "numeric", minute: "2-digit" });
+  return `${datePart} — الساعة ${timePart}`;
+}
+
+function renderActivityLogTab(el) {
+  let log = getActivityLog();
+  if (ACTIVITY_LOG_SEARCH.trim()) {
+    const q = ACTIVITY_LOG_SEARCH.trim().toLowerCase();
+    log = log.filter(x => (x.message || "").toLowerCase().includes(q) || (x.userName || "").toLowerCase().includes(q));
+  }
+  const canDelete = hasPermission((getCurrentUser() || {}).role, "activity_log_delete");
+
+  el.innerHTML = `
+    <div class="card" style="background:#eef4fd;border-color:#cfe0f7">
+      <p style="font-size:12.5px;margin:0;color:#1d4ed8">سجل كامل بكل عملية إضافة أو تعديل أو حذف مؤثرة في النظام، مع من قام بها ووقتها.${canDelete ? " يمكن للمدير العام حذف واحد أو أكثر من السطور بتحديدها." : ""}</p>
+    </div>
+    <div class="card">
+      <div class="flex between" style="align-items:center;flex-wrap:wrap;gap:10px">
+        ${canDelete ? `<button class="btn danger" id="delSelectedLogBtn">🗑️ حذف المحدد</button>` : `<span></span>`}
+        <div class="field" style="max-width:340px;margin-bottom:0;flex:1">
+          <input id="activityLogSearch" placeholder="ابحث بنوع العملية أو اسم المستخدم..." value="${ACTIVITY_LOG_SEARCH}">
+        </div>
+        ${canDelete ? `<label class="chk"><input type="checkbox" id="selectAllLogChk"> تحديد الكل</label>` : ""}
+      </div>
+    </div>
+    <div class="card" style="padding:0">
+      ${log.length ? log.map(x => `
+        <div class="activity-log-row">
+          ${canDelete ? `<input type="checkbox" data-logsel="${x.id}">` : ""}
+          <div class="activity-log-body">
+            <div class="activity-log-msg">${x.message}</div>
+            <div class="activity-log-meta">بواسطة ${x.userName} — ${activityLogTimeText(x.createdAt)}</div>
+          </div>
+        </div>`).join("") : `<div class="empty-state"><div class="ic">🕓</div>لا توجد عمليات مسجلة بعد</div>`}
+    </div>
+  `;
+
+  document.getElementById("activityLogSearch").oninput = (e) => { ACTIVITY_LOG_SEARCH = e.target.value; renderActivityLogTab(el); };
+
+  const selectAllChk = document.getElementById("selectAllLogChk");
+  if (selectAllChk) selectAllChk.onchange = (e) => {
+    el.querySelectorAll("[data-logsel]").forEach(c => c.checked = e.target.checked);
+  };
+
+  const delBtn = document.getElementById("delSelectedLogBtn");
+  if (delBtn) delBtn.onclick = () => {
+    const ids = [...el.querySelectorAll("[data-logsel]:checked")].map(c => c.dataset.logsel);
+    if (!ids.length) { toast("يرجى تحديد سطر واحد على الأقل"); return; }
+    if (!confirm(`حذف ${ids.length} سطر من سجل العمليات؟`)) return;
+    deleteActivityLogEntries(ids);
+    toast("تم حذف السطور المحددة");
+    renderActivityLogTab(el);
+  };
 }
 
 /* ---------- تبويب الصلاحيات ---------- */
@@ -198,6 +260,7 @@ function renderUsersTab(el) {
     const list = dbGet("users", []);
     list.push({ id: uid("u"), name, username, role });
     dbSet("users", list);
+    logActivity(`تم إضافة مستخدم جديد "${name}" بمسمى وظيفي: ${role}`);
     toast("تم إضافة المستخدم");
     renderSettings(el.parentElement);
   };
@@ -207,6 +270,7 @@ function renderUsersTab(el) {
     const u = list.find(x => x.id === sel.dataset.rolesel);
     u.role = sel.value;
     dbSet("users", list);
+    logActivity(`تم تغيير المسمى الوظيفي للمستخدم "${u.name}" إلى: ${u.role}`);
     toast("تم تحديث المسمى الوظيفي");
     const cur = getCurrentUser();
     if (cur && cur.id === u.id) setCurrentUser(u);
@@ -216,7 +280,9 @@ function renderUsersTab(el) {
     const cur = getCurrentUser();
     if (cur && cur.id === b.dataset.deluser) { toast("لا يمكن حذف المستخدم الحالي المسجل دخوله"); return; }
     if (!confirm("هل تريد حذف هذا المستخدم؟")) return;
+    const target = dbGet("users", []).find(u => u.id === b.dataset.deluser);
     dbSet("users", dbGet("users", []).filter(u => u.id !== b.dataset.deluser));
+    if (target) logActivity(`تم حذف المستخدم "${target.name}"`);
     renderSettings(el.parentElement);
   });
 }

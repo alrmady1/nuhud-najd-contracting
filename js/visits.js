@@ -214,6 +214,7 @@ function openVisitModal(prefill) {
         createdAt: new Date().toISOString(),
       });
       dbSet("visits", visits);
+      logActivity(`تم إنشاء طلب زيارة موقع للعميل "${clientName}"`);
 
       addNotification({
         type: "visit_new",
@@ -293,11 +294,15 @@ function openVisitModal(prefill) {
   };
 
   ov.querySelector("#v_saveResult").onclick = () => {
+    const prevStatus = v.status;
+    const prevPhotoCount = (v.visitPhotos || []).length;
     v.status = ov.querySelector("#v_status").value;
     v.visitResult = ov.querySelector("#v_result").value.trim();
     v.visitPhotos = newVisitPhotos;
     v.receivedFiles = newReceivedFiles;
     dbSet("visits", visits);
+    if (v.status !== prevStatus) logActivity(`تم تحديث حالة زيارة العميل "${v.clientName}" إلى: ${v.status}`);
+    if (newVisitPhotos.length > prevPhotoCount) logActivity(`تم إضافة صور ميدانية لزيارة العميل "${v.clientName}"`);
     toast("تم حفظ نتيجة الزيارة");
     closeModal();
     router();

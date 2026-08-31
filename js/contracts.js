@@ -188,7 +188,9 @@ function renderContractsList(el) {
   el.querySelectorAll("[data-delc]").forEach(b => b.onclick = (e) => {
     e.stopPropagation();
     if (!confirm("حذف هذا العقد؟")) return;
+    const target = contracts.find(c => c.id === b.dataset.delc);
     dbSet("contracts", dbGet("contracts", []).filter(c => c.id !== b.dataset.delc));
+    logActivity(`تم حذف عقد العميل "${target ? target.clientName : ""}"`);
     router();
   });
 }
@@ -349,6 +351,7 @@ function renderContractBuilder(el) {
     d.contractText = document.getElementById("c_text").value;
     contracts.push(d);
     dbSet("contracts", contracts);
+    logActivity(`تم إنشاء عقد "${(CONTRACT_TYPES.find(t => t.key === d.type) || {}).label || d.type}" للعميل "${d.clientName}" بقيمة ${fmtMoneyEN(d.totalAmount)}`);
     toast("تم حفظ العقد بنجاح");
     CONTRACTS_VIEW = "list";
     router();

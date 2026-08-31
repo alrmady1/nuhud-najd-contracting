@@ -73,7 +73,9 @@ function renderAccProjects(el) {
   document.getElementById("addInvoiceBtn").onclick = () => openInvoiceModal(el);
   el.querySelectorAll("[data-delentry]").forEach(b => b.onclick = () => {
     if (!confirm("حذف هذه الحركة؟")) return;
+    const target = dbGet("accProjects", []).find(x => x.id === b.dataset.delentry);
     dbSet("accProjects", dbGet("accProjects", []).filter(x => x.id !== b.dataset.delentry));
+    if (target) logActivity(`تم حذف حركة مالية "${target.type}" بقيمة ${fmtMoney(target.amount)}`);
     renderAccProjects(el);
   });
   el.querySelectorAll("[data-printinv]").forEach(b => b.onclick = () => printInvoice(b.dataset.printinv));
@@ -107,6 +109,8 @@ function openAccEntryModal(el) {
       date: ov.querySelector("#e_date").value || todayISO(), note: ov.querySelector("#e_note").value.trim(),
     });
     dbSet("accProjects", entries);
+    const projectName = (dbGet("projects", []).find(p => p.id === ACC_SELECTED_PROJECT) || {}).name || "";
+    logActivity(`تم تسجيل حركة "${ov.querySelector("#e_type").value}" بقيمة ${fmtMoney(amount)} لمشروع "${projectName}"`);
     toast("تم إضافة الحركة المالية");
     closeModal();
     renderAccProjects(el);
@@ -144,6 +148,7 @@ function openInvoiceModal(el) {
       invoiceNumber, date: ov.querySelector("#i_date").value || todayISO(),
     });
     dbSet("accProjects", entries);
+    logActivity(`تم إصدار فاتورة "${invoiceNumber}" للعميل "${ov.querySelector("#i_client").value.trim()}" بقيمة ${fmtMoney(amount + vat)}`);
     toast("تم إصدار الفاتورة الضريبية");
     closeModal();
     renderAccProjects(el);
@@ -235,7 +240,9 @@ function renderGeneralExpensesTab(el) {
   document.getElementById("addGeneralBtn").onclick = () => openGeneralExpenseModal(el);
   el.querySelectorAll("[data-delgen]").forEach(b => b.onclick = () => {
     if (!confirm("حذف هذا المصروف؟")) return;
+    const target = dbGet("accGeneral", []).find(x => x.id === b.dataset.delgen);
     dbSet("accGeneral", dbGet("accGeneral", []).filter(x => x.id !== b.dataset.delgen));
+    if (target) logActivity(`تم حذف مصروف إداري "${target.category}" بقيمة ${fmtMoney(target.amount)}`);
     renderGeneralExpensesTab(el);
   });
 }
@@ -272,7 +279,9 @@ function renderCustodyTab(el) {
   el.querySelectorAll("[data-delcustody]").forEach(x => x.onclick = (e) => {
     e.stopPropagation();
     if (!confirm("حذف هذه العهدة وكل حركاتها؟")) return;
+    const target = custodies.find(c => c.id === x.dataset.delcustody);
     dbSet("custodies", dbGet("custodies", []).filter(c => c.id !== x.dataset.delcustody));
+    if (target) logActivity(`تم حذف عهدة الموظف "${target.employeeName}"`);
     renderCustodyTab(el);
   });
 }
@@ -331,6 +340,7 @@ function openNewCustodyModal(el) {
       transactions: [{ id: uid("cutx"), type: "إيداع", amount, date, note: "المبلغ الابتدائي للعهدة" }],
     });
     dbSet("custodies", custodies);
+    logActivity(`تم إنشاء عهدة للموظف "${emp.name}" بمبلغ ابتدائي ${fmtMoney(amount)}`);
     toast("تم إنشاء العهدة بنجاح");
     closeModal();
     renderCustodyTab(el);
@@ -383,6 +393,7 @@ function openCustodyDetailModal(custodyId, el) {
   ov.querySelector("#cu_toggleStatus").onclick = () => {
     c.status = c.status === "مفتوحة" ? "مغلقة" : "مفتوحة";
     dbSet("custodies", custodies);
+    logActivity(`تم تحديث حالة عهدة "${c.employeeName}" إلى: ${c.status}`);
     toast("تم تحديث حالة العهدة");
     openCustodyDetailModal(c.id, el);
   };
@@ -413,6 +424,7 @@ function openAddCustodyTxnModal(custodyId, type, el) {
       note: ov.querySelector("#ct_note").value.trim(),
     });
     dbSet("custodies", custodies);
+    logActivity(type === "إيداع" ? `تم إضافة رصيد ${fmtMoney(amount)} لعهدة "${c.employeeName}"` : `تم تسجيل مصروف ${fmtMoney(amount)} على عهدة "${c.employeeName}"`);
     toast(type === "إيداع" ? "تم إضافة الرصيد" : "تم تسجيل المصروف");
     closeModal();
     openCustodyDetailModal(custodyId, el);
@@ -445,6 +457,7 @@ function openGeneralExpenseModal(el) {
       date: ov.querySelector("#g_date").value || todayISO(), note: ov.querySelector("#g_note").value.trim(),
     });
     dbSet("accGeneral", list);
+    logActivity(`تم تسجيل مصروف إداري "${ov.querySelector("#g_cat").value}" بقيمة ${fmtMoney(amount)}`);
     toast("تم إضافة المصروف الإداري");
     closeModal();
     renderGeneralExpensesTab(el);

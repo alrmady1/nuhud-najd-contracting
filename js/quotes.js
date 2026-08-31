@@ -129,7 +129,9 @@ function renderQuotesList(el) {
   });
   el.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
     if (!confirm("هل تريد حذف عرض السعر؟")) return;
+    const target = quotes.find(q => q.id === b.dataset.del);
     dbSet("quotes", dbGet("quotes", []).filter(q => q.id !== b.dataset.del));
+    logActivity(`تم حذف عرض السعر "${target ? target.number : ""}"`);
     router();
   });
 }
@@ -581,6 +583,7 @@ function bindQuoteBuilderEvents(el) {
     q.date = todayISO();
     quotes.push(q);
     dbSet("quotes", quotes);
+    logActivity(`تم إنشاء عرض سعر "${q.number}" للعميل "${q.client.name}" بقيمة ${fmtMoney(quoteTotal(q))}`);
     toast("تم حفظ عرض السعر بنجاح");
     QUOTES_VIEW = "list";
     router();

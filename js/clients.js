@@ -117,6 +117,7 @@ function openNewClientModal(onSaved) {
     };
     clients.push(newClient);
     dbSet("clients", clients);
+    logActivity(`تم إضافة عميل جديد "${newClient.name}"`);
     toast("تم إضافة العميل");
     closeModal();
     if (typeof onSaved === "function") onSaved(newClient);
@@ -240,6 +241,7 @@ function renderClientDetail(el) {
     target.address = document.getElementById("ec_address").value.trim();
     target.notes = document.getElementById("ec_notes").value.trim();
     dbSet("clients", list);
+    logActivity(`تم تعديل بيانات العميل "${target.name}"`);
     toast("تم حفظ بيانات العميل");
     router();
   };
@@ -248,6 +250,7 @@ function renderClientDetail(el) {
   if (deleteBtn) deleteBtn.onclick = () => {
     if (!confirm("هل تريد حذف هذا العميل؟ لن يؤثر هذا على المشاريع أو العروض المرتبطة به.")) return;
     dbSet("clients", dbGet("clients", []).filter(x => x.id !== c.id));
+    logActivity(`تم حذف العميل "${c.name}"`);
     toast("تم حذف العميل");
     CLIENTS_VIEW = "list";
     router();

@@ -79,7 +79,9 @@ function renderProjectsList(el) {
   el.querySelectorAll("[data-delproj]").forEach(x => x.onclick = (e) => {
     e.stopPropagation();
     if (!confirm("حذف هذا المشروع؟")) return;
+    const target = projects.find(p => p.id === x.dataset.delproj);
     dbSet("projects", dbGet("projects", []).filter(p => p.id !== x.dataset.delproj));
+    logActivity(`تم حذف المشروع "${target ? target.name : ""}"`);
     router();
   });
 }
@@ -384,6 +386,7 @@ function renderProjectBuilder(el) {
     if (!d.clientId) { toast("يرجى اختيار العميل"); return; }
 
     const projects = dbGet("projects", []);
+    const isNew = !d.id;
     if (d.id) {
       const idx = projects.findIndex(p => p.id === d.id);
       if (idx > -1) projects[idx] = d;
@@ -393,6 +396,7 @@ function renderProjectBuilder(el) {
       projects.push(d);
     }
     dbSet("projects", projects);
+    logActivity(isNew ? `تم إضافة مشروع جديد "${d.name}"` : `تم تعديل بيانات المشروع "${d.name}"`);
     toast("تم حفظ المشروع بنجاح");
     PROJECT_VIEW_ID = d.id;
     PROJECTS_VIEW = "detail";
@@ -560,7 +564,7 @@ function renderProjectDetail(el) {
   // ---- بيانات أساسية (حفظ تلقائي) ----
   document.getElementById("pd_name").onchange = (e) => { p.name = e.target.value.trim() || p.name; persist(); };
   el.querySelectorAll("[data-ptype]").forEach(pill => pill.onclick = () => { p.projectType = pill.dataset.ptype; persist(); renderProjectDetail(el); });
-  document.getElementById("pd_status").onchange = (e) => { p.status = e.target.value; persist(); };
+  document.getElementById("pd_status").onchange = (e) => { p.status = e.target.value; persist(); logActivity(`تم تحديث حالة المشروع "${p.name}" إلى: ${p.status}`); };
   document.getElementById("pd_location").onchange = (e) => {
     p.location = e.target.value.trim();
     persist();

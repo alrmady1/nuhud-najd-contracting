@@ -116,6 +116,7 @@ const PERMISSION_GROUPS = [
   ]},
   { group: "الإعدادات", perms: [
     { key: "settings", label: "الوصول لإعدادات النظام" },
+    { key: "activity_log_delete", label: "حذف سطور من سجل العمليات", defaultRoles: ["مدير عام"] },
   ]},
 ];
 const ALL_PERMISSION_DEFS = PERMISSION_GROUPS.flatMap(g => g.perms);
@@ -125,6 +126,7 @@ function defaultPermMatrix() {
   ALL_PERMISSION_DEFS.forEach(p => {
     matrix[p.key] = {};
     ROLES.forEach(role => {
+      if (p.defaultRoles) { matrix[p.key][role] = p.defaultRoles.includes(role); return; }
       const baseKey = p.parent || p.key;
       matrix[p.key][role] = (PERMISSIONS[role] || []).includes(baseKey);
     });
@@ -366,4 +368,34 @@ function markAllNotificationsRead(userId, notifIds) {
     if (n && !n.readBy.includes(userId)) { n.readBy.push(userId); changed = true; }
   });
   if (changed) dbSet("notifications", list);
+}
+
+/* ---------- سجل العمليات (Activity Log) ---------- */
+const ACTIVITY_LOG_MAX = 1000;
+
+function logActivity(message) {
+  try {
+    const user = getCurrentUser();
+    const log = dbGet("activityLog", []);
+    log.unshift({
+      id: uid("log"),
+      message,
+      userName: user ? user.name : "مستخدم غير معروف",
+      userId: user ? user.id : "",
+      createdAt: new Date().toISOString(),
+    });
+    if (log.length > ACTIVITY_LOG_MAX) log.length = ACTIVITY_LOG_MAX;
+    dbSet("activityLog", log);
+  } catch (e) {
+    console.error("logActivity error", e);
+  }
+}
+
+function getActivityLog() {
+  return dbGet("activityLog", []);
+}
+
+function deleteActivityLogEntries(ids) {
+  const log = dbGet("activityLog", []);
+  dbSet("activityLog", log.filter(x => !ids.includes(x.id)));
 }
