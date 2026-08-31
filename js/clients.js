@@ -31,11 +31,13 @@ function renderClientsList(el) {
   const quotes = dbGet("quotes", []);
   const contracts = dbGet("contracts", []);
   const projects = dbGet("projects", []);
+  const role = (getCurrentUser() || {}).role;
+  const canAddClient = hasPermission(role, "clients_add");
 
   el.innerHTML = `
     <div class="section-title-row">
       <div><h2>العملاء</h2><p>سجل عملاء المؤسسة وبياناتهم</p></div>
-      <button class="btn primary" id="newClientBtn">+ عميل جديد</button>
+      ${canAddClient ? `<button class="btn primary" id="newClientBtn">+ عميل جديد</button>` : ""}
     </div>
 
     <div class="card">
@@ -72,7 +74,8 @@ function renderClientsList(el) {
     </div>
   `;
 
-  document.getElementById("newClientBtn").onclick = openNewClientModal;
+  const newClientBtn = document.getElementById("newClientBtn");
+  if (newClientBtn) newClientBtn.onclick = openNewClientModal;
   document.getElementById("clientSearch").oninput = (e) => { CLIENTS_SEARCH = e.target.value; renderClientsList(el); };
   el.querySelectorAll("[data-openclient]").forEach(b => b.onclick = () => {
     CLIENT_VIEW_ID = b.dataset.openclient; CLIENTS_VIEW = "detail"; router();
@@ -130,6 +133,7 @@ function renderClientDetail(el) {
   const quotes = dbGet("quotes", []).filter(q => sameClientName(q.client && q.client.name, c.name));
   const contracts = dbGet("contracts", []).filter(k => sameClientName(k.clientName, c.name));
   const visits = dbGet("visits", []).filter(v => sameClientName(v.clientName, c.name));
+  const canDeleteClient = hasPermission((getCurrentUser() || {}).role, "clients_delete");
 
   el.innerHTML = `
     <div class="section-title-row no-print">
@@ -155,7 +159,7 @@ function renderClientDetail(el) {
         <div class="field"><label>ملاحظات</label><textarea id="ec_notes">${c.notes || ""}</textarea></div>
         <div class="flex gap">
           <button class="btn primary" id="ec_save">💾 حفظ التعديلات</button>
-          <button class="btn danger" id="ec_delete" style="margin-inline-start:auto">حذف العميل</button>
+          ${canDeleteClient ? `<button class="btn danger" id="ec_delete" style="margin-inline-start:auto">حذف العميل</button>` : ""}
         </div>
       </div>
 
@@ -240,7 +244,8 @@ function renderClientDetail(el) {
     router();
   };
 
-  document.getElementById("ec_delete").onclick = () => {
+  const deleteBtn = document.getElementById("ec_delete");
+  if (deleteBtn) deleteBtn.onclick = () => {
     if (!confirm("هل تريد حذف هذا العميل؟ لن يؤثر هذا على المشاريع أو العروض المرتبطة به.")) return;
     dbSet("clients", dbGet("clients", []).filter(x => x.id !== c.id));
     toast("تم حذف العميل");

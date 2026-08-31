@@ -2,15 +2,16 @@
    صفحة الإعدادات
    ========================================================= */
 
-let SETTINGS_TAB = "users"; // users | catalog | company
+let SETTINGS_TAB = "users"; // users | permissions | catalog | company
 
 function renderSettings(el) {
   el.innerHTML = `
     <div class="section-title-row"><div><h2>الإعدادات</h2><p>إدارة المستخدمين والصلاحيات وبنود عروض الأسعار وبيانات المؤسسة</p></div></div>
     <div class="tabs">
       <div class="tab-btn ${SETTINGS_TAB === "users" ? "active" : ""}" data-tab="users">١. التحكم بالمستخدمين</div>
-      <div class="tab-btn ${SETTINGS_TAB === "catalog" ? "active" : ""}" data-tab="catalog">٢. بنود عروض الأسعار</div>
-      <div class="tab-btn ${SETTINGS_TAB === "company" ? "active" : ""}" data-tab="company">٣. بيانات المؤسسة والشعار</div>
+      <div class="tab-btn ${SETTINGS_TAB === "permissions" ? "active" : ""}" data-tab="permissions">٢. الصلاحيات</div>
+      <div class="tab-btn ${SETTINGS_TAB === "catalog" ? "active" : ""}" data-tab="catalog">٣. بنود عروض الأسعار</div>
+      <div class="tab-btn ${SETTINGS_TAB === "company" ? "active" : ""}" data-tab="company">٤. بيانات المؤسسة والشعار</div>
     </div>
     <div id="settingsBody"></div>
   `;
@@ -18,8 +19,71 @@ function renderSettings(el) {
 
   const body = document.getElementById("settingsBody");
   if (SETTINGS_TAB === "users") renderUsersTab(body);
+  else if (SETTINGS_TAB === "permissions") renderPermissionsTab(body);
   else if (SETTINGS_TAB === "catalog") renderCatalogTab(body);
   else renderCompanyTab(body);
+}
+
+/* ---------- تبويب الصلاحيات ---------- */
+function renderPermissionsTab(el) {
+  const matrix = getPermMatrix();
+  el.innerHTML = `
+    <div class="card">
+      <div class="flex between" style="align-items:center">
+        <div>
+          <h3 class="mt-0">مصفوفة الصلاحيات</h3>
+          <p class="text-muted" style="font-size:12.5px;margin-top:-8px">حدد الصلاحيات المتاحة لكل مسمى وظيفي بوضع علامة صح — يتم الحفظ تلقائياً عند كل تغيير</p>
+        </div>
+        <button class="btn sm" id="permResetBtn" type="button">إعادة الافتراضي</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table perm-matrix">
+          <thead>
+            <tr>
+              <th>الصلاحية</th>
+              ${ROLES.map(r => `<th style="text-align:center">${r}</th>`).join("")}
+            </tr>
+          </thead>
+          <tbody>
+            ${PERMISSION_GROUPS.map(g => `
+              <tr class="perm-group-row"><td colspan="${ROLES.length + 1}">${g.group}</td></tr>
+              ${g.perms.map(p => `
+                <tr>
+                  <td>${p.label}</td>
+                  ${ROLES.map(r => `
+                    <td style="text-align:center">
+                      <input type="checkbox" data-permkey="${p.key}" data-permrole="${r}" ${matrix[p.key] && matrix[p.key][r] ? "checked" : ""} style="width:auto">
+                    </td>
+                  `).join("")}
+                </tr>
+              `).join("")}
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  el.querySelectorAll("[data-permkey]").forEach(chk => chk.onchange = () => {
+    const m = getPermMatrix();
+    const key = chk.dataset.permkey, role = chk.dataset.permrole;
+    if (!m[key]) m[key] = {};
+    m[key][role] = chk.checked;
+    setPermMatrix(m);
+    const cur = getCurrentUser();
+    if (cur && cur.role === role && !chk.checked && !canAccess(role, "settings")) {
+      toast("تم حفظ الصلاحيات — تنبيه: تم سحب صلاحية الوصول للإعدادات عن مسماك الوظيفي الحالي");
+    } else {
+      toast("تم حفظ الصلاحيات");
+    }
+  });
+
+  document.getElementById("permResetBtn").onclick = () => {
+    if (!confirm("إعادة جميع الصلاحيات إلى الإعدادات الافتراضية؟")) return;
+    setPermMatrix(defaultPermMatrix());
+    toast("تم استعادة الصلاحيات الافتراضية");
+    renderSettings(el.parentElement);
+  };
 }
 
 /* ---------- تبويب بيانات المؤسسة ---------- */

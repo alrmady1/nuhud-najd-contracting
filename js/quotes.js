@@ -83,10 +83,13 @@ function renderQuotes(el) {
 
 function renderQuotesList(el) {
   const quotes = dbGet("quotes", []).slice().sort((a, b) => (b.date > a.date ? 1 : -1));
+  const role = (getCurrentUser() || {}).role;
+  const canAddQuote = hasPermission(role, "quotes_add");
+  const canDeleteQuote = hasPermission(role, "quotes_delete");
   el.innerHTML = `
     <div class="section-title-row">
       <div><h2>عروض الأسعار</h2><p>إدارة عروض الأسعار المرسلة للعملاء</p></div>
-      <button class="btn primary" id="newQuoteBtn">+ عرض سعر جديد</button>
+      ${canAddQuote ? `<button class="btn primary" id="newQuoteBtn">+ عرض سعر جديد</button>` : ""}
     </div>
     <div class="card">
       ${quotes.length ? `
@@ -104,7 +107,7 @@ function renderQuotesList(el) {
                 <td>${fmtDate(q.date)}</td>
                 <td>
                   <button class="btn sm" data-view="${q.id}">عرض</button>
-                  <button class="btn sm danger" data-del="${q.id}">حذف</button>
+                  ${canDeleteQuote ? `<button class="btn sm danger" data-del="${q.id}">حذف</button>` : ""}
                 </td>
               </tr>`).join("")}
           </tbody>
@@ -113,7 +116,8 @@ function renderQuotesList(el) {
     </div>
   `;
 
-  document.getElementById("newQuoteBtn").onclick = () => {
+  const newQuoteBtn = document.getElementById("newQuoteBtn");
+  if (newQuoteBtn) newQuoteBtn.onclick = () => {
     DRAFT_QUOTE = newDraftQuote();
     QUOTE_CLIENT_SEARCH = "";
     QUOTE_SHOW_ADD_CLIENT = false;

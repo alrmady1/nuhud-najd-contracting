@@ -43,10 +43,13 @@ function renderProjects(el) {
 
 function renderProjectsList(el) {
   const projects = dbGet("projects", []).slice().sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  const role = (getCurrentUser() || {}).role;
+  const canAddProject = hasPermission(role, "projects_add");
+  const canDeleteProject = hasPermission(role, "projects_delete");
   el.innerHTML = `
     <div class="section-title-row">
       <div><h2>المشاريع</h2><p>إدارة مشاريع المؤسسة وربطها بالعملاء والعقود وجداول الكميات المعتمدة</p></div>
-      <button class="btn primary" id="newProjectBtn"><span style="font-size:15px">➕</span> إضافة مشروع</button>
+      ${canAddProject ? `<button class="btn primary" id="newProjectBtn"><span style="font-size:15px">➕</span> إضافة مشروع</button>` : ""}
     </div>
     ${projects.length ? projects.map(p => `
       <div class="contract-row" data-openproj="${p.id}">
@@ -61,12 +64,13 @@ function renderProjectsList(el) {
         </div>
         <div class="contract-row-actions no-print">
           <button class="btn sm" data-openproj="${p.id}">فتح</button>
-          <button class="btn sm danger" data-delproj="${p.id}">حذف</button>
+          ${canDeleteProject ? `<button class="btn sm danger" data-delproj="${p.id}">حذف</button>` : ""}
         </div>
       </div>`).join("") : `<div class="card empty-state"><div class="ic">🏗️</div>لا توجد مشاريع بعد</div>`}
   `;
 
-  document.getElementById("newProjectBtn").onclick = () => {
+  const newProjectBtn = document.getElementById("newProjectBtn");
+  if (newProjectBtn) newProjectBtn.onclick = () => {
     DRAFT_PROJECT = newDraftProject();
     PROJECT_CLIENT_SEARCH = ""; PROJECT_SHOW_ADD_CLIENT = false;
     PROJECTS_VIEW = "builder"; router();

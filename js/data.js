@@ -77,8 +77,76 @@ const PERMISSIONS = {
   "مسؤول مشتريات": ["dashboard", "projects", "clients", "quotes", "acc_projects"],
 };
 
+/* ---------- مصفوفة الصلاحيات التفصيلية (تبويب "الصلاحيات" في الإعدادات) ---------- */
+const PERMISSION_GROUPS = [
+  { group: "لوحة التحكم", perms: [
+    { key: "dashboard", label: "الوصول للوحة التحكم" },
+  ]},
+  { group: "المشاريع", perms: [
+    { key: "projects", label: "عرض قائمة المشاريع" },
+    { key: "projects_add", label: "إضافة مشروع جديد", parent: "projects" },
+    { key: "projects_delete", label: "حذف مشروع", parent: "projects" },
+  ]},
+  { group: "العملاء", perms: [
+    { key: "clients", label: "عرض قائمة العملاء" },
+    { key: "clients_add", label: "إضافة عميل جديد", parent: "clients" },
+    { key: "clients_delete", label: "حذف عميل", parent: "clients" },
+  ]},
+  { group: "عروض الأسعار", perms: [
+    { key: "quotes", label: "عرض عروض الأسعار" },
+    { key: "quotes_add", label: "إنشاء عرض سعر جديد", parent: "quotes" },
+    { key: "quotes_delete", label: "حذف عرض سعر", parent: "quotes" },
+  ]},
+  { group: "زيارة الموقع", perms: [
+    { key: "visits", label: "عرض زيارات الموقع" },
+    { key: "visits_add", label: "طلب زيارة موقع جديدة", parent: "visits" },
+  ]},
+  { group: "التقارير", perms: [
+    { key: "reports", label: "عرض التقارير" },
+  ]},
+  { group: "العقود", perms: [
+    { key: "contracts", label: "عرض العقود" },
+    { key: "contracts_add", label: "إنشاء عقد جديد", parent: "contracts" },
+    { key: "contracts_delete", label: "حذف عقد", parent: "contracts" },
+  ]},
+  { group: "المحاسبة", perms: [
+    { key: "acc_projects", label: "محاسبة المشاريع" },
+    { key: "acc_general", label: "المحاسبة العامة والعُهد" },
+    { key: "acc_vat", label: "ضريبة القيمة المضافة" },
+  ]},
+  { group: "الإعدادات", perms: [
+    { key: "settings", label: "الوصول لإعدادات النظام" },
+  ]},
+];
+const ALL_PERMISSION_DEFS = PERMISSION_GROUPS.flatMap(g => g.perms);
+
+function defaultPermMatrix() {
+  const matrix = {};
+  ALL_PERMISSION_DEFS.forEach(p => {
+    matrix[p.key] = {};
+    ROLES.forEach(role => {
+      const baseKey = p.parent || p.key;
+      matrix[p.key][role] = (PERMISSIONS[role] || []).includes(baseKey);
+    });
+  });
+  return matrix;
+}
+
+function getPermMatrix() {
+  return dbGet("permMatrix", null) || defaultPermMatrix();
+}
+function setPermMatrix(matrix) {
+  dbSet("permMatrix", matrix);
+}
+
+function hasPermission(role, key) {
+  const matrix = getPermMatrix();
+  if (matrix[key] && Object.prototype.hasOwnProperty.call(matrix[key], role)) return !!matrix[key][role];
+  return (PERMISSIONS[role] || []).includes(key);
+}
+
 function canAccess(role, routeKey) {
-  return (PERMISSIONS[role] || []).includes(routeKey);
+  return hasPermission(role, routeKey);
 }
 
 /* ---------- بيانات أولية (Seed) ---------- */

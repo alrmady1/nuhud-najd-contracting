@@ -157,10 +157,13 @@ function renderContracts(el) {
 
 function renderContractsList(el) {
   const contracts = dbGet("contracts", []).slice().sort((a, b) => (b.date > a.date ? 1 : -1));
+  const role = (getCurrentUser() || {}).role;
+  const canAddContract = hasPermission(role, "contracts_add");
+  const canDeleteContract = hasPermission(role, "contracts_delete");
   el.innerHTML = `
     <div class="section-title-row">
       <div><h2>العقود</h2><p>نماذج عقود جاهزة لمشاريع إنشائية أو ترميم أو تشطيبات</p></div>
-      <button class="btn primary" id="newContractBtn"><span style="font-size:15px">➕</span> إضافة عقد</button>
+      ${canAddContract ? `<button class="btn primary" id="newContractBtn"><span style="font-size:15px">➕</span> إضافة عقد</button>` : ""}
     </div>
     ${contracts.length ? contracts.map(c => {
       const typeInfo = CONTRACT_TYPES.find(t => t.key === c.type) || {};
@@ -174,12 +177,13 @@ function renderContractsList(el) {
         <div class="contract-row-amount">${fmtMoneyEN(c.totalAmount)}</div>
         <div class="contract-row-actions no-print">
           <button class="btn sm" data-viewc="${c.id}">فتح</button>
-          <button class="btn sm danger" data-delc="${c.id}">حذف</button>
+          ${canDeleteContract ? `<button class="btn sm danger" data-delc="${c.id}">حذف</button>` : ""}
         </div>
       </div>`;
     }).join("") : `<div class="card empty-state"><div class="ic">📄</div>لا توجد عقود محفوظة بعد</div>`}
   `;
-  document.getElementById("newContractBtn").onclick = () => { DRAFT_CONTRACT = newDraftContract(); CONTRACTS_VIEW = "builder"; router(); };
+  const newContractBtn = document.getElementById("newContractBtn");
+  if (newContractBtn) newContractBtn.onclick = () => { DRAFT_CONTRACT = newDraftContract(); CONTRACTS_VIEW = "builder"; router(); };
   el.querySelectorAll("[data-viewc]").forEach(b => b.onclick = () => { CONTRACT_VIEW_ID = b.dataset.viewc; CONTRACTS_VIEW = "view"; router(); });
   el.querySelectorAll("[data-delc]").forEach(b => b.onclick = (e) => {
     e.stopPropagation();

@@ -7,11 +7,12 @@ let VISIT_MODAL = null; // 'create' | {id}
 function renderVisits(el) {
   const visits = dbGet("visits", []).slice().sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
   const users = dbGet("users", []);
+  const canAddVisit = hasPermission((getCurrentUser() || {}).role, "visits_add");
 
   el.innerHTML = `
     <div class="section-title-row">
       <div><h2>زيارة موقع</h2><p>تكليف المشرفين بزيارات ميدانية ومتابعة نتائجها</p></div>
-      <button class="btn primary" id="newVisitBtn">+ طلب زيارة جديد</button>
+      ${canAddVisit ? `<button class="btn primary" id="newVisitBtn">+ طلب زيارة جديد</button>` : ""}
     </div>
 
     <div class="card">
@@ -35,7 +36,8 @@ function renderVisits(el) {
     </div>
   `;
 
-  document.getElementById("newVisitBtn").onclick = () => { VISIT_MODAL = "create"; openVisitModal(); };
+  const newVisitBtn = document.getElementById("newVisitBtn");
+  if (newVisitBtn) newVisitBtn.onclick = () => { VISIT_MODAL = "create"; openVisitModal(); };
   el.querySelectorAll("[data-open]").forEach(b => b.onclick = () => { VISIT_MODAL = { id: b.dataset.open }; openVisitModal(); });
 }
 
