@@ -4,6 +4,51 @@
 
 let VISIT_MODAL = null; // 'create' | {id}
 
+const VISIT_REMINDER_WINDOW_MS = 60 * 60 * 1000; // ساعة واحدة قبل موعد الزيارة
+
+function checkVisitNotifications() {
+  const visits = dbGet("visits", []);
+  const now = Date.now();
+  let changed = false;
+
+  visits.forEach(v => {
+    if (!v.requestedTime || v.status === "منتهية" || v.status === "قيد التنفيذ") return;
+    const visitTime = new Date(v.requestedTime).getTime();
+    if (isNaN(visitTime)) return;
+
+    // تنبيه قبل الزيارة بساعة للمشرف المسؤول
+    if (!v.reminderSent && visitTime > now && visitTime - now <= VISIT_REMINDER_WINDOW_MS) {
+      addNotification({
+        type: "visit_reminder",
+        title: "تذكير بزيارة موقع قادمة",
+        message: `تبقى أقل من ساعة على موعد زيارة العميل "${v.clientName}" (${new Date(v.requestedTime).toLocaleString("ar-SA")})`,
+        targetRoles: [],
+        targetUserIds: v.assignedTo ? [v.assignedTo] : [],
+        relatedRoute: "visits",
+      });
+      v.reminderSent = true;
+      changed = true;
+    }
+
+    // تجاوز موعد الزيارة دون تحديث حالتها إلى قيد التنفيذ أو منتهية
+    if (!v.lateNotified && now > visitTime) {
+      v.status = "متأخرة";
+      addNotification({
+        type: "visit_late",
+        title: "موعد زيارة لم يُنفَّذ في وقته",
+        message: `تجاوز موعد زيارة العميل "${v.clientName}" (${new Date(v.requestedTime).toLocaleString("ar-SA")}) دون تحديث حالة الطلب`,
+        targetRoles: ["مدير النظام"],
+        targetUserIds: v.assignedTo ? [v.assignedTo] : [],
+        relatedRoute: "visits",
+      });
+      v.lateNotified = true;
+      changed = true;
+    }
+  });
+
+  if (changed) dbSet("visits", visits);
+}
+
 function renderVisits(el) {
   const visits = dbGet("visits", []).slice().sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
   const users = dbGet("users", []);
@@ -60,8 +105,10 @@ function locationDisplay(loc) {
   return loc;
 }
 
+const VISIT_STATUSES = ["جديدة", "قيد التنفيذ", "منتهية", "متأخرة"];
+
 function statusBadge(status) {
-  const map = { "جديدة": "gray", "قيد التنفيذ": "orange", "منتهية": "green" };
+  const map = { "جديدة": "gray", "قيد التنفيذ": "orange", "منتهية": "green", "متأخرة": "red" };
   return `<span class="badge ${map[status] || "gray"}">${status || "جديدة"}</span>`;
 }
 
@@ -254,7 +301,7 @@ function openVisitModal(prefill) {
     <div class="field">
       <label>حالة الزيارة</label>
       <select id="v_status">
-        ${["جديدة", "قيد التنفيذ", "منتهية"].map(s => `<option value="${s}" ${v.status === s ? "selected" : ""}>${s}</option>`).join("")}
+        ${VISIT_STATUSES.map(s => `<option value="${s}" ${v.status === s ? "selected" : ""}>${s}</option>`).join("")}
       </select>
     </div>
     <div class="field"><label>نتيجة الزيارة / الوضع الراهن</label><textarea id="v_result">${v.visitResult || ""}</textarea></div>
