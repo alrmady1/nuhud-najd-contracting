@@ -1248,11 +1248,11 @@ function renderUsersTab(el) {
     renderSettings(el.parentElement);
   });
 
-  el.querySelectorAll("[data-empinfo]").forEach(b => b.onclick = () => openEmployeePersonalModal(b.dataset.empinfo, el));
+  el.querySelectorAll("[data-empinfo]").forEach(b => b.onclick = () => openEmployeePersonalModal(b.dataset.empinfo, () => renderSettings(el.parentElement)));
 }
 
 /* ---------- بيانات شخصية للموظف (هوية، جنسية، تاريخ ميلاد/عمر، صور الهوية) ---------- */
-function openEmployeePersonalModal(userId, usersTabEl) {
+function openEmployeePersonalModal(userId, onSaved) {
   const u = dbGet("users", []).find(x => x.id === userId);
   if (!u) return;
   let idPhotos = (u.idPhotos || []).slice();
@@ -1329,7 +1329,7 @@ function openEmployeePersonalModal(userId, usersTabEl) {
     closeModal();
     const cur = getCurrentUser();
     if (cur && cur.id === target.id) setCurrentUser(target);
-    renderSettings(usersTabEl.parentElement);
+    if (onSaved) onSaved();
   };
 }
 
