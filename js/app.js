@@ -450,11 +450,13 @@ window.addEventListener("DOMContentLoaded", () => {
   checkProjectDeadlineNotifications();
   checkVisitNotifications();
   checkDocumentExpiryNotifications();
+  checkPersonalDocumentExpiryNotifications();
   setInterval(() => {
     if (!getCurrentUser()) return;
     checkProjectDeadlineNotifications();
     checkVisitNotifications();
     checkDocumentExpiryNotifications();
+    checkPersonalDocumentExpiryNotifications();
     renderNotifBell(); // تحديث عداد التنبيهات فقط دون إعادة رسم الصفحة الحالية (حتى لا تُفقد أي بيانات قيد الإدخال)
   }, 5 * 60 * 1000); // إعادة فحص التنبيهات كل 5 دقائق أثناء بقاء التطبيق مفتوحاً
   renderApp();
